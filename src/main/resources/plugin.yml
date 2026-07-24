@@ -1,0 +1,20 @@
+name: CoreBuilders
+version: '${version}'
+main: com.corebuilders.bot.CoreBuildersPlugin
+api-version: '1.21.4'
+author: Core Builders
+description: Core Builders progression, economy, Minecraft integration, and Discord bot.
+
+commands:
+  core:
+    description: Core Builders member commands.
+    usage: /core <profile|balance|leaderboard|link|unlink|help>
+    aliases: [corebuilders, cb]
+
+permissions:
+  corebuilders.use:
+    description: Use Core Builders member commands.
+    default: true
+  corebuilders.admin:
+    description: Use Core Builders Minecraft administrative commands.
+    default: op

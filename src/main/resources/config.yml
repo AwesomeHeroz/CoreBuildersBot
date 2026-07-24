@@ -1,0 +1,130 @@
+discord:
+  token: "" # Prefer DISCORD_BOT_TOKEN
+  guild-id: "" # Required; prefer DISCORD_GUILD_ID
+  permissions:
+    trusted-staff-role-ids: []
+    admin-role-ids: []
+    leadership-role-ids: []
+  text-commands:
+    enabled: false
+    prefix: "!core"
+  channels:
+    staff-approval: "staff-approvals"
+    contribution-log: "contribution-log"
+    economy-log: "economy-log"
+    achievements: "achievements"
+    leaderboard: "core-leaderboard"
+
+integrations:
+  hypergliding:
+    base-url: "https://hypergliding.com/api/"
+    api-key: "" # Prefer COREBOT_HYPERGLIDING_API_KEY
+    timeout-seconds: 15
+    user-cooldown-seconds: 10
+    cache-seconds: 30
+    global-requests-per-minute: 20
+
+applications:
+  enabled: false
+  entry-panel:
+    enabled: true
+    channel: "apply"
+    message-id: ""
+    title: "Core Builders Applications"
+    description: |
+      Interested in joining Core Builders?
+      Click **Apply Now** to begin your application.
+    button:
+      label: "Apply Now"
+
+  channels:
+    pending: "pending"
+    accepted: "accepted"
+    rejected: "denied"
+
+  reviewer-role-ids: []
+  approval:
+    role-id: ""
+
+  prevent-duplicate-pending: true
+  allow-reapply-after-decision: true
+  session-expiry-minutes: 30
+
+  uploads:
+    max-file-size-mb: 15
+    max-total-size-mb: 50
+
+  tickets:
+    category: "application-tickets"
+    name-pattern: "application-{username}-{id}"
+    delete-on-decision: false
+
+  messages:
+    submitted: "Your application has been submitted successfully. The Core Builders team will review it."
+    accepted: "Your Core Builders application has been accepted by {reviewer}. You received the {role} role. Welcome to the group!"
+    rejected: "Your Core Builders application has been rejected by {reviewer}. Reason: {reason}"
+    ticket-created: "A private discussion ticket was created for your application: {ticket}"
+    ticket-opening: "Please use this channel to discuss the application."
+
+  questions:
+    - id: "minecraft_name"
+      type: "text"
+      label: "What is your Minecraft username?"
+      placeholder: "Your Minecraft username"
+      required: true
+      style: "short"
+      min-length: 2
+      max-length: 100
+
+    - id: "about_you"
+      type: "text"
+      label: "Tell us about yourself"
+      required: true
+      style: "paragraph"
+      min-length: 20
+      max-length: 2000
+
+    - id: "why_join"
+      type: "text"
+      label: "Why do you want to join?"
+      required: true
+      style: "paragraph"
+      min-length: 20
+      max-length: 2000
+
+    - id: "contribution"
+      type: "text"
+      label: "How can you contribute?"
+      required: true
+      style: "paragraph"
+      min-length: 20
+      max-length: 2000
+
+    - id: "evidence"
+      type: "upload"
+      label: "Upload examples of your work"
+      required: false
+      min-files: 0
+      max-files: 5
+
+database:
+  host: "localhost"
+  port: 3306
+  name: "corebuilders_bot"
+  username: "root"
+  password: "" # Prefer COREBOT_DB_PASSWORD
+  ssl-mode: "DISABLED" # Allowed by default only for localhost/loopback
+  allow-insecure-remote: false
+  jdbc-url: "" # Prefer COREBOT_DB_URL
+  maximum-pool-size: 10
+  minimum-idle: 1
+  connection-timeout-ms: 10000
+  validation-timeout-ms: 5000
+  migrations:
+    enabled: true
+    baseline-on-migrate: false
+    validate-on-migrate: true
+
+minecraft:
+  link-code-expiry-minutes: 10
+  leaderboard-size: 10

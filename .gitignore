@@ -1,0 +1,14 @@
+.gradle/
+build/
+out/
+.idea/
+*.iml
+.env
+*.log
+
+# Paper runtime files
+server/*
+!server/README.txt
+!server/plugins/
+server/plugins/*
+!server/plugins/.gitkeep
