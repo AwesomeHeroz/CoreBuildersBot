@@ -17,6 +17,10 @@ java {
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://maven.lavalink.dev/releases")
+    maven("https://jitpack.io") {
+        content { includeGroup("com.github.walkyst") }
+    }
 }
 
 dependencies {
@@ -34,6 +38,17 @@ dependencies {
         exclude(module = "opus-java")
         exclude(module = "tink")
     }
+
+    implementation("dev.arbjerg:lavaplayer:2.2.7")
+    implementation("dev.lavalink.youtube:v2:1.18.1")
+
+    // Discord voice requires DAVE. libdave-jvm supports this Java 21 Paper plugin.
+    implementation("moe.kyokobot.libdave:adapter-jda:0.1.2")
+    implementation("moe.kyokobot.libdave:impl-jni:0.1.2")
+    runtimeOnly("moe.kyokobot.libdave:natives-win-x86-64:0.1.2")
+    runtimeOnly("moe.kyokobot.libdave:natives-linux-x86-64:0.1.2")
+    runtimeOnly("moe.kyokobot.libdave:natives-linux-aarch64:0.1.2")
+    runtimeOnly("moe.kyokobot.libdave:natives-darwin:0.1.2")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
 }
@@ -203,7 +218,11 @@ val verifyShadowJar = tasks.register("verifyShadowJar") {
             "com/querydsl/sql/SQLQueryFactory.class",
             "org/flywaydb/core/Flyway.class",
             "com/mysql/cj/jdbc/Driver.class",
-            "net/dv8tion/jda/api/JDA.class"
+            "net/dv8tion/jda/api/JDA.class",
+            "com/sedmelluq/discord/lavaplayer/player/AudioPlayer.class",
+            "dev/lavalink/youtube/YoutubeAudioSourceManager.class",
+            "moe/kyokobot/libdave/NativeDaveFactory.class",
+            "moe/kyokobot/libdave/jda/LDJDADaveSessionFactory.class"
         )
 
         ZipFile(shadedJar).use { zip ->
