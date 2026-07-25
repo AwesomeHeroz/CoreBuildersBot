@@ -242,11 +242,6 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
         String userId = user.getId();
         sessionStore.cleanupExpired();
 
-        if (sessionStore.findForUser(userId).isPresent()) {
-            throw new IllegalStateException(
-                    "You already have an application form in progress. Finish or cancel that form first."
-            );
-        }
         if (config.isPreventDuplicatePending() && applications.pendingForUser(userId).isPresent()) {
             throw new IllegalStateException(
                     "You already have a pending application. Use `/application status` to check it."

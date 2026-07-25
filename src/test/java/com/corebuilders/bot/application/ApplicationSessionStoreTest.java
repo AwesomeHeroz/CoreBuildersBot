@@ -45,6 +45,23 @@ class ApplicationSessionStoreTest {
         assertEquals(0, store.size());
     }
 
+
+    @Test
+    void startingAgainReplacesSessionLeftByNativeModalCancel() {
+        ApplicationSessionStore<String> store = new ApplicationSessionStore<>();
+
+        var abandoned = store.create("1", "Player", Duration.ofMinutes(10));
+        abandoned.values().put("question", "partial answer");
+
+        var restarted = store.create("1", "Player", Duration.ofMinutes(10));
+
+        assertNotEquals(abandoned.id(), restarted.id());
+        assertTrue(store.findValid(abandoned.id(), "1").isEmpty());
+        assertEquals(restarted.id(), store.findForUser("1").orElseThrow().id());
+        assertTrue(restarted.values().isEmpty());
+        assertEquals(1, store.size());
+    }
+
     private static final class MutableClock extends Clock {
         private Instant instant;
 
