@@ -237,7 +237,6 @@ val verifyShadowJar = tasks.register("verifyShadowJar") {
                 .map { it.name }
                 .filter {
                     it.startsWith("org/springframework/") ||
-                    it.startsWith("org/postgresql/")
                     it.startsWith("org/postgresql/") ||
                     it.startsWith("com/fasterxml/jackson/")
                 }
