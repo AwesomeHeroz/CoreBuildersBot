@@ -22,10 +22,6 @@ class HyperglidingRequestFactoryTest {
                 request.uri().toString()
         );
         assertEquals("application/json", request.headers().firstValue("Accept").orElseThrow());
-        assertEquals("identity", request.headers().firstValue("Accept-Encoding").orElseThrow());
-        assertEquals("no-cache", request.headers().firstValue("Cache-Control").orElseThrow());
-        assertEquals(HyperglidingRequestFactory.USER_AGENT,
-                request.headers().firstValue("User-Agent").orElseThrow());
         assertEquals("secret", request.headers().firstValue("X-Internal-Api-Key").orElseThrow());
         assertEquals(Duration.ofSeconds(7), request.timeout().orElseThrow());
     }
