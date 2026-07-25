@@ -76,6 +76,7 @@ tasks.shadowJar {
 
     // Hikari is relocated to avoid conflicts with other Paper plugins.
     relocate("com.zaxxer.hikari", "com.corebuilders.libs.hikari")
+    relocate("com.fasterxml.jackson", "com.corebuilders.libs.jackson")
 }
 
 tasks.jar {
@@ -215,6 +216,7 @@ val verifyShadowJar = tasks.register("verifyShadowJar") {
             "com/corebuilders/bot/discord/CommandRegistrar.class",
             "com/corebuilders/bot/external/HyperglidingClient.class",
             "com/corebuilders/libs/hikari/HikariDataSource.class",
+            "com/corebuilders/libs/jackson/databind/ObjectMapper.class",
             "com/querydsl/sql/SQLQueryFactory.class",
             "org/flywaydb/core/Flyway.class",
             "com/mysql/cj/jdbc/Driver.class",
@@ -236,11 +238,13 @@ val verifyShadowJar = tasks.register("verifyShadowJar") {
                 .filter {
                     it.startsWith("org/springframework/") ||
                     it.startsWith("org/postgresql/")
+                    it.startsWith("org/postgresql/") ||
+                    it.startsWith("com/fasterxml/jackson/")
                 }
                 .take(10)
                 .toList()
             check(forbiddenEntries.isEmpty()) {
-                "Unexpected Spring/PostgreSQL classes were included: ${forbiddenEntries.joinToString()}"
+                "Unexpected unrelocated/conflicting classes were included: ${forbiddenEntries.joinToString()}"
             }
         }
     }
