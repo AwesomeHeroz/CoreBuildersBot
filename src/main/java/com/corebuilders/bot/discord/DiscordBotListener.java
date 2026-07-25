@@ -125,10 +125,9 @@ public final class DiscordBotListener extends ListenerAdapter {
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
-        // Membership applications own their entire interaction lifecycle because /apply
-        // must open a modal immediately. Ignore them before any guild/error reply so the
-        // two listeners can never acknowledge the same Discord interaction.
-        if ("apply".equals(event.getName()) || "application".equals(event.getName())) {
+        if ("apply".equals(event.getName())
+                || "application".equals(event.getName())
+                || "music".equals(event.getName())) {
             return;
         }
 

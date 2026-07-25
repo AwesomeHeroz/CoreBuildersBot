@@ -74,6 +74,21 @@ public final class ApplicationSessionStore<V> {
         }
     }
 
+    public synchronized boolean removeIfValid(UUID sessionId, String userId) {
+        if (sessionId == null || userId == null || userId.isBlank()) {
+            return false;
+        }
+
+        Session<V> session = sessions.get(sessionId);
+        if (session == null || !session.userId().equals(userId)) {
+            return false;
+        }
+
+        boolean valid = !isExpired(session);
+        remove(session);
+        return valid;
+    }
+
     public synchronized int cleanupExpired() {
         int before = sessions.size();
         sessions.values().stream().filter(this::isExpired).toList().forEach(this::remove);

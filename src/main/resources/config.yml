@@ -15,6 +15,25 @@ discord:
     achievements: "achievements"
     leaderboard: "core-leaderboard"
 
+
+music:
+  enabled: true
+  default-volume: 80
+  max-queue-size: 100
+  max-playlist-tracks: 25
+  max-track-duration-minutes: 180
+  allow-streams: true
+  idle-disconnect-seconds: 300
+  load-timeout-seconds: 20
+
+  # Empty means anyone in the same voice channel can control playback.
+  controller-role-ids: []
+
+  # YouTube, SoundCloud, Bandcamp, Vimeo and Twitch are always supported.
+  # Generic HTTPS audio/radio URLs require both settings below.
+  allow-direct-urls: false
+  allowed-direct-url-hosts: []
+
 integrations:
   hypergliding:
     base-url: "https://hypergliding.com/api/"
@@ -38,9 +57,9 @@ applications:
       label: "Apply Now"
 
   channels:
-    pending: "pending"
-    accepted: "accepted"
-    rejected: "denied"
+    pending: "pending-applications"
+    accepted: "accepted-applications"
+    rejected: "rejected-applications"
 
   reviewer-role-ids: []
   approval:

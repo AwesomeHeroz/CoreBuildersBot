@@ -2,6 +2,7 @@ package com.corebuilders.bot.runtime;
 
 import com.corebuilders.bot.config.ApplicationConfig;
 import com.corebuilders.bot.config.BotProperties;
+import com.corebuilders.bot.config.MusicConfig;
 import com.corebuilders.bot.config.ApplicationPanelConfig;
 import com.corebuilders.bot.db.QueryDslDatabase;
 import com.corebuilders.bot.discord.ApplicationDiscordListener;
@@ -11,6 +12,9 @@ import com.corebuilders.bot.discord.DiscordBotListener;
 import com.corebuilders.bot.discord.DiscordNotifier;
 import com.corebuilders.bot.discord.PermissionService;
 import com.corebuilders.bot.discord.RankRoleService;
+import com.corebuilders.bot.discord.music.DiscordAudioBootstrap;
+import com.corebuilders.bot.discord.music.MusicDiscordListener;
+import com.corebuilders.bot.discord.music.MusicService;
 import com.corebuilders.bot.external.CachingNewPlayersProvider;
 import com.corebuilders.bot.external.HyperglidingClient;
 import com.corebuilders.bot.external.NewPlayersProvider;
@@ -38,6 +42,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
     private final HikariDataSource dataSource;
     private final DiscordBotListener discordListener;
     private final ApplicationDiscordListener applicationListener;
+    private final MusicDiscordListener musicListener;
     private final JDA jda;
     private final CommandRegistrar commandRegistrar;
 
@@ -51,6 +56,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             HikariDataSource dataSource,
             DiscordBotListener discordListener,
             ApplicationDiscordListener applicationListener,
+            MusicDiscordListener musicListener,
             JDA jda,
             CommandRegistrar commandRegistrar,
             LinkService linkService,
@@ -62,6 +68,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         this.dataSource = dataSource;
         this.discordListener = discordListener;
         this.applicationListener = applicationListener;
+        this.musicListener = musicListener;
         this.jda = jda;
         this.commandRegistrar = commandRegistrar;
         this.linkService = linkService;
@@ -75,6 +82,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         HikariDataSource dataSource = null;
         DiscordBotListener listener = null;
         ApplicationDiscordListener applicationListener = null;
+        MusicDiscordListener musicListener = null;
         JDA jda = null;
 
         try {
@@ -138,6 +146,9 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     applicationConfig,
                     properties.getGuildId()
             );
+            MusicConfig musicConfig = MusicConfig.from(plugin.getConfig());
+            MusicService musicService = new MusicService(musicConfig);
+            musicListener = new MusicDiscordListener(musicConfig, properties.getGuildId(), musicService);
 
             String token = properties.getToken();
             if (token == null || token.isBlank()) {
@@ -149,7 +160,13 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
             JDABuilder jdaBuilder = JDABuilder.createDefault(token)
                     .setActivity(Activity.playing("Core Builders progression"))
-                    .addEventListeners(listener, applicationListener);
+                    .addEventListeners(listener, applicationListener, musicListener);
+
+            if (musicConfig.enabled()) {
+                jdaBuilder.enableIntents(GatewayIntent.GUILD_VOICE_STATES);
+                DiscordAudioBootstrap.configure(jdaBuilder);
+                plugin.getLogger().info("Discord music is enabled with DAVE voice encryption.");
+            }
 
             if (properties.isTextCommandsEnabled()) {
                 jdaBuilder.enableIntents(GatewayIntent.MESSAGE_CONTENT);
@@ -170,12 +187,14 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
             java.util.Set<String> handledCommands = new java.util.LinkedHashSet<>(listener.handledCommandNames());
             handledCommands.addAll(applicationListener.handledCommandNames());
+            handledCommands.addAll(musicListener.handledCommandNames());
             CommandRegistrar registrar = new CommandRegistrar(jda, properties, handledCommands);
             return new CoreBuildersRuntime(
                     plugin.getLogger(),
                     dataSource,
                     listener,
                     applicationListener,
+                    musicListener,
                     jda,
                     registrar,
                     links,
@@ -192,6 +211,9 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             }
             if (applicationListener != null) {
                 applicationListener.close();
+            }
+            if (musicListener != null) {
+                musicListener.close();
             }
             if (dataSource != null) {
                 dataSource.close();
@@ -229,6 +251,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
     @Override
     public void close() {
+        closeQuietly("Music service", musicListener::close);
         closeQuietly("Discord client", jda::shutdownNow);
         closeQuietly("Discord command listener", discordListener::shutdown);
         closeQuietly("Application listener", applicationListener::close);

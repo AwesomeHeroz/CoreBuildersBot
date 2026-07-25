@@ -367,10 +367,11 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
     private void cancelApplication(ButtonInteractionEvent event, String[] parts) {
         if (parts.length < 3) throw new IllegalArgumentException("Invalid cancel action.");
         UUID sessionId = parseUuid(parts[2], "application session");
-        Session<CollectedAnswer> session = sessionStore.findValid(sessionId, event.getUser().getId())
-                .orElseThrow(() -> new IllegalStateException("This application session has already expired."));
-        sessionStore.remove(session);
-        event.editMessage("Application cancelled.").setComponents(List.of()).queue();
+        boolean cancelled = sessionStore.removeIfValid(sessionId, event.getUser().getId());
+        String message = cancelled
+                ? "Application cancelled."
+                : "This application form was already cancelled or expired.";
+        event.editMessage(message).setComponents(List.of()).queue();
     }
 
     private ApplicationRecord finalizeApplication(Guild guild, User user, Session<CollectedAnswer> session) throws Exception {

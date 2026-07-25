@@ -118,6 +118,22 @@ public final class CommandRegistrar {
                                 .addOption(OptionType.INTEGER, "page", "API page number, starting at 1. Default: 1.", false)
                 ));
 
+        commands.add(Commands.slash("music", "Join a voice channel and play music.")
+                .addSubcommands(
+                        new SubcommandData("join", "Join your current voice channel."),
+                        new SubcommandData("play", "Play a YouTube search or supported HTTPS music URL.")
+                                .addOption(OptionType.STRING, "query", "Search text or supported music URL.", true),
+                        new SubcommandData("queue", "Show the current music queue."),
+                        new SubcommandData("nowplaying", "Show the current track."),
+                        new SubcommandData("skip", "Skip the current track."),
+                        new SubcommandData("pause", "Pause playback."),
+                        new SubcommandData("resume", "Resume playback."),
+                        new SubcommandData("stop", "Stop playback and clear the queue."),
+                        new SubcommandData("leave", "Leave voice and clear the queue."),
+                        new SubcommandData("volume", "Set playback volume from 0 to 150 percent.")
+                                .addOption(OptionType.INTEGER, "percent", "Volume percentage, 0-150.", true)
+                ));
+
         commands.add(Commands.slash("profile", "Show a Core Builders member profile.")
                 .addOption(OptionType.USER, "member", "Member to view.", false));
         commands.add(Commands.slash("balance", "Show your Core Credit balance.")

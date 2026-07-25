@@ -62,6 +62,30 @@ class ApplicationSessionStoreTest {
         assertEquals(1, store.size());
     }
 
+
+    @Test
+    void removingSessionIsIdempotentAndDoesNotRemoveReplacement() {
+        ApplicationSessionStore<String> store = new ApplicationSessionStore<>();
+        var first = store.create("1", "Player", Duration.ofMinutes(10));
+        var replacement = store.create("1", "Player", Duration.ofMinutes(10));
+
+        assertFalse(store.removeIfValid(first.id(), "1"));
+        assertEquals(replacement.id(), store.findForUser("1").orElseThrow().id());
+
+        assertTrue(store.removeIfValid(replacement.id(), "1"));
+        assertFalse(store.removeIfValid(replacement.id(), "1"));
+        assertTrue(store.findForUser("1").isEmpty());
+    }
+
+    @Test
+    void anotherUserCannotCancelSession() {
+        ApplicationSessionStore<String> store = new ApplicationSessionStore<>();
+        var session = store.create("1", "Player", Duration.ofMinutes(10));
+
+        assertFalse(store.removeIfValid(session.id(), "2"));
+        assertEquals(session.id(), store.findForUser("1").orElseThrow().id());
+    }
+
     private static final class MutableClock extends Clock {
         private Instant instant;
 

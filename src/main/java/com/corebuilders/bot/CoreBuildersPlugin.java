@@ -45,7 +45,7 @@ public final class CoreBuildersPlugin extends JavaPlugin {
 
             getLogger().info(
                     "Core Builders enabled without Spring. Discord, progression, economy, "
-                            + "external MySQL, and Minecraft integration are active."
+                            + "external MySQL, Discord music, and Minecraft integration are active."
             );
         } catch (Exception error) {
             getLogger().log(Level.SEVERE, "Failed to start Core Builders: " + ErrorMessages.safe(error), error);
