@@ -2,13 +2,16 @@ package com.corebuilders.bot.external;
 
 import java.net.URI;
 import java.net.http.HttpRequest;
+import java.util.Objects;
 
 /** Builds authenticated Hypergliding requests; separated from I/O for deterministic tests. */
 public final class HyperglidingRequestFactory {
+    static final String USER_AGENT = "CoreBuildersBot (+https://github.com/AwesomeHeroz/CoreBuildersBot)";
+
     private final HyperglidingConfig config;
 
     public HyperglidingRequestFactory(HyperglidingConfig config) {
-        this.config = config;
+        this.config = Objects.requireNonNull(config, "config");
     }
 
     public HttpRequest newPlayers(int page, int size) {
@@ -28,9 +31,15 @@ public final class HyperglidingRequestFactory {
         URI uri = URI.create(config.endpoint()
                 + "?page=" + page
                 + "&size=" + size);
+
         return HttpRequest.newBuilder(uri)
                 .timeout(config.timeout())
+                // Match the known-working curl request closely. Some reverse proxies reject
+                // Java's default request when it has no User-Agent or negotiates HTTP/2.
                 .header("Accept", "application/json")
+                .header("Accept-Encoding", "identity")
+                .header("Cache-Control", "no-cache")
+                .header("User-Agent", USER_AGENT)
                 .header("X-Internal-Api-Key", config.apiKey())
                 .GET()
                 .build();
