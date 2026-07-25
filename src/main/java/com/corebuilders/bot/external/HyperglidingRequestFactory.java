@@ -27,7 +27,8 @@ public final class HyperglidingRequestFactory {
 
         URI uri = URI.create(config.endpoint()
                 + "?page=" + page
-                + "&size=" + size);
+                + "&size=" + size
+                + "&sort=first_join&direction=desc&prio=1");
         return HttpRequest.newBuilder(uri)
                 .timeout(config.timeout())
                 .header("Accept", "application/json")
