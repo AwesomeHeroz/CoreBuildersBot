@@ -35,6 +35,12 @@ public final class Schema {
     public static final QAuditLogs AUDIT_LOGS = new QAuditLogs("al");
     public static final QMinecraftLinkCodes LINK_CODES = new QMinecraftLinkCodes("lc");
     public static final QApplications APPLICATIONS = new QApplications("app");
+    public static final QMarketplaceShops MARKETPLACE_SHOPS = new QMarketplaceShops("mps");
+    public static final QMarketplaceItems MARKETPLACE_ITEMS = new QMarketplaceItems("mpi");
+    public static final QMarketplaceCarts MARKETPLACE_CARTS = new QMarketplaceCarts("mpc");
+    public static final QMarketplaceCartItems MARKETPLACE_CART_ITEMS = new QMarketplaceCartItems("mpci");
+    public static final QMarketplaceOrders MARKETPLACE_ORDERS = new QMarketplaceOrders("mpo");
+    public static final QMarketplaceOrderItems MARKETPLACE_ORDER_ITEMS = new QMarketplaceOrderItems("mpoi");
 
     private abstract static class Table extends RelationalPathBase<Object> {
         protected Table(String variable, String table) {
@@ -232,6 +238,79 @@ public final class Schema {
         public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
         public final DateTimePath<LocalDateTime> reviewedAt = createDateTime("reviewed_at", LocalDateTime.class);
         public QApplications(String variable) { super(variable, "applications"); }
+    }
+
+
+    public static final class QMarketplaceShops extends Table {
+        public final StringPath id = createString("id");
+        public final StringPath ownerMemberId = createString("owner_member_id");
+        public final StringPath name = createString("name");
+        public final StringPath description = createString("description");
+        public final BooleanPath active = createBoolean("active");
+        public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> updatedAt = createDateTime("updated_at", LocalDateTime.class);
+        public QMarketplaceShops(String variable) { super(variable, "marketplace_shops"); }
+    }
+
+    public static final class QMarketplaceItems extends Table {
+        public final StringPath id = createString("id");
+        public final StringPath shopId = createString("shop_id");
+        public final StringPath name = createString("name");
+        public final StringPath description = createString("description");
+        public final StringPath imageUrl = createString("image_url");
+        public final NumberPath<Integer> stock = createNumber("stock", Integer.class);
+        public final NumberPath<Long> price = createNumber("price", Long.class);
+        public final StringPath category = createString("category");
+        public final BooleanPath active = createBoolean("active");
+        public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> updatedAt = createDateTime("updated_at", LocalDateTime.class);
+        public QMarketplaceItems(String variable) { super(variable, "marketplace_items"); }
+    }
+
+    public static final class QMarketplaceCarts extends Table {
+        public final StringPath id = createString("id");
+        public final StringPath memberId = createString("member_id");
+        public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> updatedAt = createDateTime("updated_at", LocalDateTime.class);
+        public QMarketplaceCarts(String variable) { super(variable, "marketplace_carts"); }
+    }
+
+    public static final class QMarketplaceCartItems extends Table {
+        public final StringPath cartId = createString("cart_id");
+        public final StringPath itemId = createString("item_id");
+        public final NumberPath<Integer> quantity = createNumber("quantity", Integer.class);
+        public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> updatedAt = createDateTime("updated_at", LocalDateTime.class);
+        public QMarketplaceCartItems(String variable) { super(variable, "marketplace_cart_items"); }
+    }
+
+    public static final class QMarketplaceOrders extends Table {
+        public final StringPath id = createString("id");
+        public final StringPath buyerMemberId = createString("buyer_member_id");
+        public final NumberPath<Long> totalPrice = createNumber("total_price", Long.class);
+        public final StringPath status = createString("status");
+        public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> completedAt = createDateTime("completed_at", LocalDateTime.class);
+        public QMarketplaceOrders(String variable) { super(variable, "marketplace_orders"); }
+    }
+
+    public static final class QMarketplaceOrderItems extends Table {
+        public final StringPath id = createString("id");
+        public final StringPath orderId = createString("order_id");
+        public final StringPath itemId = createString("item_id");
+        public final StringPath shopId = createString("shop_id");
+        public final StringPath sellerMemberId = createString("seller_member_id");
+        public final StringPath shopName = createString("shop_name");
+        public final StringPath itemName = createString("item_name");
+        public final StringPath imageUrl = createString("image_url");
+        public final StringPath category = createString("category");
+        public final NumberPath<Integer> quantity = createNumber("quantity", Integer.class);
+        public final NumberPath<Long> unitPrice = createNumber("unit_price", Long.class);
+        public final NumberPath<Long> lineTotal = createNumber("line_total", Long.class);
+        public final StringPath status = createString("status");
+        public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> deliveredAt = createDateTime("delivered_at", LocalDateTime.class);
+        public QMarketplaceOrderItems(String variable) { super(variable, "marketplace_order_items"); }
     }
 
 }

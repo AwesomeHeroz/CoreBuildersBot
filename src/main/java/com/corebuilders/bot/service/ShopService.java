@@ -6,9 +6,14 @@ import com.corebuilders.bot.model.Domain.SourceType;
 import com.corebuilders.bot.model.Models.Member;
 import com.corebuilders.bot.model.Models.ShopItem;
 import com.corebuilders.bot.model.Models.ShopOrder;
+import com.corebuilders.bot.model.ShopCatalog;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.corebuilders.bot.db.DbMappers.shopItemColumns;
@@ -23,9 +28,61 @@ public final class ShopService {
     private final AuditService audit;
 
     public ShopService(QueryDslDatabase database, LedgerService ledger, AuditService audit) {
-        this.database = database;
-        this.ledger = ledger;
-        this.audit = audit;
+        this.database = Objects.requireNonNull(database, "database");
+        this.ledger = Objects.requireNonNull(ledger, "ledger");
+        this.audit = Objects.requireNonNull(audit, "audit");
+    }
+
+    /** Synchronizes configured catalog metadata without deleting historical order rows. */
+    public CatalogSyncResult synchronizeCatalog(ShopCatalog catalog) {
+        Objects.requireNonNull(catalog, "catalog");
+        return database.inTransaction(() -> {
+            Set<String> existingCodes = new HashSet<>(database.query(q -> q.select(SHOP_ITEMS.code)
+                    .from(SHOP_ITEMS).fetch()));
+            int inserted = 0;
+            int updated = 0;
+            for (ShopItem configured : catalog.items()) {
+                if (!existingCodes.contains(configured.code())) {
+                    database.query(q -> {
+                        var statement = q.insert(SHOP_ITEMS)
+                                .set(SHOP_ITEMS.code, configured.code())
+                                .set(SHOP_ITEMS.name, configured.name())
+                                .set(SHOP_ITEMS.description, configured.description())
+                                .set(SHOP_ITEMS.price, configured.price())
+                                .set(SHOP_ITEMS.active, configured.active());
+                        if (configured.stock() == null) statement.setNull(SHOP_ITEMS.stock);
+                        else statement.set(SHOP_ITEMS.stock, configured.stock());
+                        return statement.execute();
+                    });
+                    inserted++;
+                } else {
+                    database.query(q -> {
+                        var statement = q.update(SHOP_ITEMS)
+                                .set(SHOP_ITEMS.name, configured.name())
+                                .set(SHOP_ITEMS.description, configured.description())
+                                .set(SHOP_ITEMS.price, configured.price())
+                                .set(SHOP_ITEMS.active, configured.active());
+                        if (catalog.syncStockOnStartup()) {
+                            if (configured.stock() == null) statement.setNull(SHOP_ITEMS.stock);
+                            else statement.set(SHOP_ITEMS.stock, configured.stock());
+                        }
+                        return statement.where(SHOP_ITEMS.code.eq(configured.code())).execute();
+                    });
+                    updated++;
+                }
+            }
+            Long disabled = 0L;
+            if (catalog.disableUnlistedItems()) {
+                List<String> configuredCodes = catalog.items().stream().map(ShopItem::code).toList();
+                disabled = database.query(q -> {
+                    var update = q.update(SHOP_ITEMS).set(SHOP_ITEMS.active, false)
+                            .where(SHOP_ITEMS.active.isTrue());
+                    if (!configuredCodes.isEmpty()) update.where(SHOP_ITEMS.code.notIn(configuredCodes));
+                    return update.execute();
+                });
+            }
+            return new CatalogSyncResult(inserted, updated, Math.toIntExact(disabled));
+        });
     }
 
     public List<ShopItem> activeItems() {
@@ -40,9 +97,11 @@ public final class ShopService {
     }
 
     public ShopOrder buy(Member member, String itemCode) {
+        Objects.requireNonNull(member, "member");
+        String normalizedCode = normalizeItemCode(itemCode);
         return database.inTransaction(() -> {
             ledger.lockMember(member.id());
-            ShopItem item = lockItem(itemCode.toUpperCase());
+            ShopItem item = lockItem(normalizedCode);
 
             if (item.stock() != null && item.stock() <= 0) {
                 throw new IllegalStateException("That item is out of stock.");
@@ -199,6 +258,11 @@ public final class ShopService {
         return getOrder(id);
     }
 
+    private static String normalizeItemCode(String value) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException("Shop item code is required.");
+        return value.trim().toUpperCase(Locale.ROOT);
+    }
+
     private static String nullableLimit(String value, int max) {
         if (value == null || value.isBlank()) return null;
         return value.length() <= max ? value : value.substring(0, max);
@@ -207,4 +271,6 @@ public final class ShopService {
     private static String nullToEmpty(String value) {
         return value == null ? "" : value;
     }
+
+    public record CatalogSyncResult(int inserted, int updated, int disabled) {}
 }

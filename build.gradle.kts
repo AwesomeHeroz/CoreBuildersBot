@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.corebuilders"
-version = "2.9.0"
+version = "2.11.0"
 
 java {
     toolchain {
@@ -33,6 +33,7 @@ dependencies {
     implementation("com.mysql:mysql-connector-j:9.7.0")
 
     implementation("com.fasterxml.jackson.core:jackson-databind:2.22.1")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22.1")
 
     implementation("net.dv8tion:JDA:6.5.0") {
         exclude(module = "opus-java")
@@ -51,6 +52,7 @@ dependencies {
     runtimeOnly("moe.kyokobot.libdave:natives-darwin:0.1.2")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+    testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
 }
 
 tasks.withType<JavaCompile> {
@@ -213,6 +215,13 @@ val verifyShadowJar = tasks.register("verifyShadowJar") {
             "com/corebuilders/bot/discord/ApplicationDiscordListener.class",
             "com/corebuilders/bot/service/ApplicationService.class",
             "com/corebuilders/bot/config/ApplicationConfig.class",
+            "com/corebuilders/bot/config/ProgressionConfig.class",
+            "com/corebuilders/bot/config/ShopConfig.class",
+            "com/corebuilders/bot/model/RankCatalog.class",
+            "com/corebuilders/bot/model/ShopCatalog.class",
+            "com/corebuilders/bot/service/MarketplaceService.class",
+            "com/corebuilders/bot/web/MarketplaceHttpServer.class",
+            "com/corebuilders/bot/web/auth/DiscordOAuthHttpClient.class",
             "com/corebuilders/bot/discord/CommandRegistrar.class",
             "com/corebuilders/bot/external/HyperglidingClient.class",
             "com/corebuilders/libs/hikari/HikariDataSource.class",

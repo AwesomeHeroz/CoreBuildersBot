@@ -25,7 +25,8 @@ public final class Models {
             long totalXp,
             long credits,
             long weeklyXp,
-            RankTier rank,
+            RankDefinition rank,
+            RankDefinition nextRank,
             int level,
             Map<ContributionCategory, Long> categoryXp,
             List<Achievement> achievements
@@ -116,7 +117,6 @@ public final class Models {
             Instant createdAt
     ) {}
 
-
     public record LedgerEntry(
             String type,
             long amount,
@@ -177,5 +177,4 @@ public final class Models {
             Instant createdAt,
             Instant reviewedAt
     ) {}
-
 }

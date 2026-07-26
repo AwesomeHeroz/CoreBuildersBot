@@ -3,8 +3,13 @@ package com.corebuilders.bot.runtime;
 import com.corebuilders.bot.config.ApplicationConfig;
 import com.corebuilders.bot.config.BotProperties;
 import com.corebuilders.bot.config.MusicConfig;
+import com.corebuilders.bot.config.ProgressionConfig;
+import com.corebuilders.bot.config.ShopConfig;
+import com.corebuilders.bot.config.WebsiteConfig;
 import com.corebuilders.bot.config.ApplicationPanelConfig;
 import com.corebuilders.bot.db.QueryDslDatabase;
+import com.corebuilders.bot.model.RankCatalog;
+import com.corebuilders.bot.model.ShopCatalog;
 import com.corebuilders.bot.discord.ApplicationDiscordListener;
 import com.corebuilders.bot.discord.ApplicationPanelService;
 import com.corebuilders.bot.discord.CommandRegistrar;
@@ -21,12 +26,16 @@ import com.corebuilders.bot.external.NewPlayersProvider;
 import com.corebuilders.bot.external.HyperglidingConfig;
 import com.corebuilders.bot.service.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.zaxxer.hikari.HikariDataSource;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import org.bukkit.plugin.java.JavaPlugin;
+import com.corebuilders.bot.web.MarketplaceHttpServer;
+import com.corebuilders.bot.web.auth.CoreWebsiteIdentity;
+import com.corebuilders.bot.web.auth.DiscordOAuthHttpClient;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -45,6 +54,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
     private final MusicDiscordListener musicListener;
     private final JDA jda;
     private final CommandRegistrar commandRegistrar;
+    private final MarketplaceHttpServer websiteServer;
 
     private final LinkService linkService;
     private final MemberService memberService;
@@ -59,6 +69,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             MusicDiscordListener musicListener,
             JDA jda,
             CommandRegistrar commandRegistrar,
+            MarketplaceHttpServer websiteServer,
             LinkService linkService,
             MemberService memberService,
             AchievementService achievementService,
@@ -71,6 +82,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         this.musicListener = musicListener;
         this.jda = jda;
         this.commandRegistrar = commandRegistrar;
+        this.websiteServer = websiteServer;
         this.linkService = linkService;
         this.memberService = memberService;
         this.achievementService = achievementService;
@@ -79,29 +91,38 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
     public static CoreBuildersRuntime start(JavaPlugin plugin) throws InterruptedException {
         BotProperties properties = new BotProperties(plugin.getConfig());
+        RankCatalog ranks = ProgressionConfig.from(plugin.getConfig());
+        ShopCatalog shopCatalog = ShopConfig.from(plugin.getConfig());
+        WebsiteConfig websiteConfig = WebsiteConfig.from(plugin.getConfig());
         HikariDataSource dataSource = null;
         DiscordBotListener listener = null;
         ApplicationDiscordListener applicationListener = null;
         MusicDiscordListener musicListener = null;
+        MarketplaceHttpServer websiteServer = null;
         JDA jda = null;
 
         try {
             dataSource = DatabaseBootstrap.start(plugin);
 
             QueryDslDatabase database = new QueryDslDatabase(dataSource);
+            ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
             LedgerService ledger = new LedgerService(database);
             AuditService audit = new AuditService(database);
-            MemberService members = new MemberService(database, ledger);
+            MemberService members = new MemberService(database, ledger, ranks);
             ContributionService contributions = new ContributionService(database, ledger, audit);
             AchievementService achievements = new AchievementService(database, ledger, contributions, audit);
             ProjectService projects = new ProjectService(database, ledger, audit);
             MissionService missions = new MissionService(database, ledger, audit);
             ShopService shop = new ShopService(database, ledger, audit);
+            MarketplaceService marketplace = new MarketplaceService(database, ledger, audit);
+            ShopService.CatalogSyncResult shopSync = shop.synchronizeCatalog(shopCatalog);
+            plugin.getLogger().info("Shop catalog synchronized: " + shopSync.inserted() + " inserted, "
+                    + shopSync.updated() + " updated, " + shopSync.disabled() + " disabled.");
             LinkService links = new LinkService(database);
             ApplicationConfig applicationConfig = new ApplicationConfig(plugin.getConfig());
             ApplicationService applications = new ApplicationService(
-                    database, new ObjectMapper(), audit, applicationConfig.isPreventDuplicatePending()
+                    database, objectMapper, audit, applicationConfig.isPreventDuplicatePending()
             );
             ApplicationPanelService applicationPanelService = new ApplicationPanelService(
                     new ApplicationPanelConfig(plugin.getConfig()),
@@ -113,7 +134,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             );
 
             PermissionService permissions = new PermissionService(properties);
-            RankRoleService rankRoles = new RankRoleService(members, ledger);
+            RankRoleService rankRoles = new RankRoleService(members, ledger, ranks);
             DiscordNotifier notifier = new DiscordNotifier(properties);
             HyperglidingClient hyperglidingClient = new HyperglidingClient(new HyperglidingConfig(
                     properties.getHyperglidingApiUrl(),
@@ -185,6 +206,20 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             applicationListener.validateConfiguration(jda);
             applicationPanelService.setupPanel(jda);
 
+            if (websiteConfig.enabled()) {
+                websiteServer = new MarketplaceHttpServer(
+                        websiteConfig,
+                        objectMapper,
+                        new DiscordOAuthHttpClient(websiteConfig, properties.getGuildId(), objectMapper),
+                        new CoreWebsiteIdentity(members, ledger),
+                        marketplace,
+                        plugin.getLogger()
+                );
+                websiteServer.start();
+            } else {
+                plugin.getLogger().info("Marketplace website is disabled. Set website.enabled=true to start it.");
+            }
+
             java.util.Set<String> handledCommands = new java.util.LinkedHashSet<>(listener.handledCommandNames());
             handledCommands.addAll(applicationListener.handledCommandNames());
             handledCommands.addAll(musicListener.handledCommandNames());
@@ -197,12 +232,16 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     musicListener,
                     jda,
                     registrar,
+                    websiteServer,
                     links,
                     members,
                     achievements,
                     ledger
             );
         } catch (Exception error) {
+            if (websiteServer != null) {
+                websiteServer.close();
+            }
             if (jda != null) {
                 jda.shutdownNow();
             }
@@ -252,6 +291,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
     @Override
     public void close() {
         closeQuietly("Music service", musicListener::close);
+        if (websiteServer != null) closeQuietly("Marketplace website", websiteServer::close);
         closeQuietly("Discord client", jda::shutdownNow);
         closeQuietly("Discord command listener", discordListener::shutdown);
         closeQuietly("Application listener", applicationListener::close);

@@ -1,0 +1,452 @@
+package com.corebuilders.bot.web;
+
+import com.corebuilders.bot.config.WebsiteConfig;
+import com.corebuilders.bot.model.MarketplaceModels.*;
+import com.corebuilders.bot.service.MarketplaceOperations;
+import com.corebuilders.bot.web.auth.DiscordIdentity;
+import com.corebuilders.bot.web.auth.DiscordOAuth;
+import com.corebuilders.bot.web.auth.SessionPrincipal;
+import com.corebuilders.bot.web.auth.WebsiteIdentity;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.logging.Logger;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class MarketplaceHttpServerTest {
+    private static final UUID MEMBER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID SELLER_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
+    private static final UUID SHOP_ID = UUID.fromString("10000000-0000-0000-0000-000000000001");
+    private static final UUID ITEM_ID = UUID.fromString("20000000-0000-0000-0000-000000000001");
+    private static final UUID CART_ID = UUID.fromString("30000000-0000-0000-0000-000000000001");
+    private static final UUID ORDER_ID = UUID.fromString("40000000-0000-0000-0000-000000000001");
+    private static final UUID LINE_ID = UUID.fromString("50000000-0000-0000-0000-000000000001");
+    private static final Instant NOW = Instant.parse("2026-07-26T10:00:00Z");
+
+    private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    private final HttpClient client = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .connectTimeout(Duration.ofSeconds(2))
+            .build();
+
+    private FakeMarketplace marketplace;
+    private MarketplaceHttpServer server;
+    private URI baseUri;
+
+    @BeforeEach
+    void startServer() throws Exception {
+        marketplace = new FakeMarketplace();
+        WebsiteConfig config = new WebsiteConfig(
+                true,
+                "127.0.0.1",
+                0,
+                URI.create("http://127.0.0.1"),
+                "123456789012345678",
+                "secret",
+                URI.create("http://127.0.0.1/api/auth/callback"),
+                false,
+                false,
+                Duration.ofHours(1),
+                1024 * 1024,
+                4
+        );
+        DiscordOAuth oauth = new FakeOAuth();
+        WebsiteIdentity identity = new WebsiteIdentity() {
+            @Override
+            public SessionPrincipal ensureProfile(DiscordIdentity discord) {
+                return new SessionPrincipal(MEMBER_ID, discord.id(), discord.displayName(), discord.avatarUrl());
+            }
+
+            @Override
+            public long contributionPointBalance(UUID memberId) {
+                assertEquals(MEMBER_ID, memberId);
+                return 1_000L;
+            }
+        };
+        server = new MarketplaceHttpServer(config, mapper, oauth, identity, marketplace, Logger.getAnonymousLogger());
+        server.start();
+        baseUri = URI.create("http://127.0.0.1:" + server.port());
+    }
+
+    @AfterEach
+    void stopServer() {
+        if (server != null) server.close();
+    }
+
+    @Test
+    void coversPublicAuthenticationAndEveryAuthenticatedApi() throws Exception {
+        Response health = request("GET", "/api/health", null, null, null);
+        assertEquals(200, health.status());
+        assertEquals("ok", health.json().path("status").asText());
+
+        Response anonymous = request("GET", "/api/auth/me", null, null, null);
+        assertEquals(200, anonymous.status());
+        assertFalse(anonymous.json().path("authenticated").asBoolean());
+
+        Response categories = request("GET", "/api/categories", null, null, null);
+        assertEquals(200, categories.status());
+        assertEquals("Kits", categories.json().path("categories").get(0).asText());
+
+        Response search = request("GET", "/api/items?q=kit&category=Kits&sort=price&direction=asc&page=2&pageSize=10", null, null, null);
+        assertEquals(200, search.status());
+        assertEquals("kit", marketplace.lastSearch.text());
+        assertEquals("Kits", marketplace.lastSearch.category());
+        assertEquals(ItemSort.PRICE, marketplace.lastSearch.sort());
+        assertEquals(SortDirection.ASC, marketplace.lastSearch.direction());
+        assertEquals(2, marketplace.lastSearch.page());
+        assertEquals(10, marketplace.lastSearch.pageSize());
+
+        assertEquals(200, request("GET", "/api/items/" + ITEM_ID, null, null, null).status());
+        Response publicShop = request("GET", "/api/shops/" + SHOP_ID, null, null, null);
+        assertEquals(200, publicShop.status());
+        assertEquals("Seller Shop", publicShop.json().path("shop").path("name").asText());
+
+        Login login = login();
+        assertNotNull(login.sessionCookie());
+        assertFalse(login.csrfToken().isBlank());
+
+        Response me = request("GET", "/api/auth/me", login.sessionCookie(), null, null);
+        assertTrue(me.json().path("authenticated").asBoolean());
+        assertEquals(1_000L, me.json().path("balance").asLong());
+
+        Response missingCsrf = request("POST", "/api/me/shop", login.sessionCookie(), null,
+                "{\"name\":\"Builder Shop\",\"description\":\"Tools\"}");
+        assertEquals(403, missingCsrf.status());
+        assertEquals("csrf_failed", missingCsrf.json().path("error").path("code").asText());
+
+        Response noShop = request("GET", "/api/me/shop", login.sessionCookie(), null, null);
+        assertEquals(200, noShop.status());
+        assertTrue(noShop.json().path("shop").isNull());
+
+        Response createdShop = request("POST", "/api/me/shop", login.sessionCookie(), login.csrfToken(),
+                "{\"name\":\"Builder Shop\",\"description\":\"Tools and kits\"}");
+        assertEquals(201, createdShop.status());
+        assertEquals("Builder Shop", createdShop.json().path("name").asText());
+
+        Response updatedShop = request("PUT", "/api/me/shop", login.sessionCookie(), login.csrfToken(),
+                "{\"name\":\"Updated Shop\",\"description\":\"Updated description\"}");
+        assertEquals(200, updatedShop.status());
+        assertEquals("Updated Shop", updatedShop.json().path("name").asText());
+
+        String itemBody = """
+                {"name":"PvP Kit","description":"Ready to fight","imageUrl":"https://example.com/kit.png",\
+                "stock":5,"price":150,"category":"Kits","active":true}
+                """;
+        Response createdItem = request("POST", "/api/me/shop/items", login.sessionCookie(), login.csrfToken(), itemBody);
+        assertEquals(201, createdItem.status());
+        assertEquals("PvP Kit", createdItem.json().path("name").asText());
+
+        Response updatedItem = request("PUT", "/api/me/shop/items/" + ITEM_ID, login.sessionCookie(), login.csrfToken(),
+                itemBody.replace("PvP Kit", "PvP Kit Plus"));
+        assertEquals(200, updatedItem.status());
+        assertEquals("PvP Kit Plus", updatedItem.json().path("name").asText());
+
+        Response deletedItem = request("DELETE", "/api/me/shop/items/" + ITEM_ID, login.sessionCookie(), login.csrfToken(), null);
+        assertEquals(204, deletedItem.status());
+        assertTrue(marketplace.itemDeactivated);
+
+        Response cart = request("GET", "/api/cart", login.sessionCookie(), null, null);
+        assertEquals(200, cart.status());
+        assertEquals(0, cart.json().path("itemCount").asInt());
+
+        Response cartUpdated = request("PUT", "/api/cart/items/" + ITEM_ID, login.sessionCookie(), login.csrfToken(),
+                "{\"quantity\":2}");
+        assertEquals(200, cartUpdated.status());
+        assertEquals(2, cartUpdated.json().path("itemCount").asInt());
+
+        Response cartRemoved = request("DELETE", "/api/cart/items/" + ITEM_ID, login.sessionCookie(), login.csrfToken(), null);
+        assertEquals(200, cartRemoved.status());
+        assertEquals(0, cartRemoved.json().path("itemCount").asInt());
+
+        Response checkout = request("POST", "/api/cart/checkout", login.sessionCookie(), login.csrfToken(), null);
+        assertEquals(201, checkout.status());
+        assertEquals(ORDER_ID.toString(), checkout.json().path("id").asText());
+
+        Response orders = request("GET", "/api/orders?limit=12", login.sessionCookie(), null, null);
+        assertEquals(200, orders.status());
+        assertEquals(12, marketplace.lastPurchaseLimit);
+        assertEquals(1, orders.json().path("orders").size());
+
+        Response sales = request("GET", "/api/sales?limit=18", login.sessionCookie(), null, null);
+        assertEquals(200, sales.status());
+        assertEquals(18, marketplace.lastSalesLimit);
+        assertEquals(1, sales.json().path("sales").size());
+
+        Response delivered = request("POST", "/api/sales/" + LINE_ID + "/delivered", login.sessionCookie(), login.csrfToken(), null);
+        assertEquals(200, delivered.status());
+        assertEquals("DELIVERED", delivered.json().path("status").asText());
+
+        Response logout = request("POST", "/api/auth/logout", login.sessionCookie(), login.csrfToken(), null);
+        assertEquals(200, logout.status());
+        assertTrue(logout.json().path("loggedOut").asBoolean());
+        assertTrue(cookieValue(logout.headers(), "core_session").isEmpty());
+
+        Response afterLogout = request("GET", "/api/cart", login.sessionCookie(), null, null);
+        assertEquals(401, afterLogout.status());
+    }
+
+    @Test
+    void validatesMethodsContentTypeAndMissingResources() throws Exception {
+        Response index = request("GET", "/", null, null, null);
+        assertEquals(200, index.status());
+        assertTrue(index.headers().firstValue("Content-Type").orElseThrow().startsWith("text/html"));
+        assertTrue(index.headers().firstValue("Content-Security-Policy").isPresent());
+        assertEquals(200, request("GET", "/app.js", null, null, null).status());
+        assertEquals(405, request("POST", "/styles.css", null, null, null).status());
+        assertEquals(401, request("GET", "/api/cart", null, null, null).status());
+        assertEquals(400, request("GET", "/api/items?sort=unknown", null, null, null).status());
+        assertEquals(404, request("GET", "/api/items/00000000-0000-0000-0000-000000000099", null, null, null).status());
+        assertEquals(400, request("GET", "/api/items/not-a-uuid", null, null, null).status());
+
+        Response invalidState = request("GET", "/api/auth/callback?code=valid-code&state=wrong",
+                "core_oauth_state=wrong", null, null);
+        assertEquals(302, invalidState.status());
+        assertTrue(invalidState.headers().firstValue("Location").orElseThrow().contains("invalid_state"));
+
+        Login login = login();
+        HttpRequest badContentType = HttpRequest.newBuilder(baseUri.resolve("/api/me/shop"))
+                .header("Cookie", login.sessionCookie())
+                .header("X-CSRF-Token", login.csrfToken())
+                .header("Content-Type", "text/plain")
+                .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                .build();
+        HttpResponse<String> response = client.send(badContentType, HttpResponse.BodyHandlers.ofString());
+        assertEquals(415, response.statusCode());
+    }
+
+    private Login login() throws Exception {
+        Response login = request("GET", "/api/auth/login", null, null, null);
+        assertEquals(302, login.status());
+        String state = cookieValue(login.headers(), "core_oauth_state");
+        assertFalse(state.isBlank());
+        assertTrue(login.headers().firstValue("Location").orElseThrow().contains("state=" + state));
+
+        Response callback = request("GET", "/api/auth/callback?code=valid-code&state=" + state,
+                "core_oauth_state=" + state, null, null);
+        assertEquals(302, callback.status());
+        assertTrue(callback.headers().firstValue("Location").orElseThrow().contains("login=success"));
+        String session = cookieValue(callback.headers(), "core_session");
+        assertFalse(session.isBlank());
+
+        Response me = request("GET", "/api/auth/me", "core_session=" + session, null, null);
+        return new Login("core_session=" + session, me.json().path("csrfToken").asText());
+    }
+
+    private Response request(String method, String path, String cookie, String csrf, String json) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(baseUri.resolve(path)).timeout(Duration.ofSeconds(5));
+        if (cookie != null) builder.header("Cookie", cookie);
+        if (csrf != null) builder.header("X-CSRF-Token", csrf);
+        HttpRequest.BodyPublisher body = json == null
+                ? HttpRequest.BodyPublishers.noBody()
+                : HttpRequest.BodyPublishers.ofString(json);
+        if (json != null) builder.header("Content-Type", "application/json");
+        builder.method(method, body);
+        HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        boolean jsonResponse = response.headers().firstValue("Content-Type")
+                .map(value -> value.toLowerCase().contains("application/json"))
+                .orElse(false);
+        JsonNode parsed = response.body().isBlank() || !jsonResponse
+                ? mapper.nullNode()
+                : mapper.readTree(response.body());
+        return new Response(response.statusCode(), response.headers(), parsed);
+    }
+
+    private static String cookieValue(java.net.http.HttpHeaders headers, String name) {
+        for (String header : headers.allValues("Set-Cookie")) {
+            String prefix = name + "=";
+            if (header.startsWith(prefix)) return header.substring(prefix.length(), header.indexOf(';'));
+        }
+        return "";
+    }
+
+    private record Login(String sessionCookie, String csrfToken) {}
+    private record Response(int status, java.net.http.HttpHeaders headers, JsonNode json) {}
+
+    private static final class FakeOAuth implements DiscordOAuth {
+        @Override
+        public URI authorizationUri(String state) {
+            return URI.create("https://discord.test/oauth?state=" + state);
+        }
+
+        @Override
+        public DiscordIdentity exchange(String authorizationCode) {
+            assertEquals("valid-code", authorizationCode);
+            return new DiscordIdentity("123456789012345678", "builder", "Builder", "https://cdn.example/avatar.png");
+        }
+    }
+
+    private static final class FakeMarketplace implements MarketplaceOperations {
+        private final PlayerShop sellerShop = shop(SHOP_ID, SELLER_ID, "Seller Shop");
+        private PlayerShop ownerShop;
+        private MarketplaceItem item = item("PvP Kit", true);
+        private ItemSearch lastSearch;
+        private boolean itemDeactivated;
+        private int cartQuantity;
+        private int lastPurchaseLimit;
+        private int lastSalesLimit;
+
+        @Override
+        public ItemPage searchItems(ItemSearch search) {
+            lastSearch = search;
+            return new ItemPage(List.of(item), search.page(), search.pageSize(), 1);
+        }
+
+        @Override
+        public Optional<MarketplaceItem> findItem(UUID itemId) {
+            return ITEM_ID.equals(itemId) ? Optional.of(item) : Optional.empty();
+        }
+
+        @Override
+        public List<String> categories() {
+            return List.of("Kits", "Blocks");
+        }
+
+        @Override
+        public Optional<PlayerShop> findShop(UUID shopId) {
+            if (SHOP_ID.equals(shopId)) return Optional.of(sellerShop);
+            if (ownerShop != null && ownerShop.id().equals(shopId)) return Optional.of(ownerShop);
+            return Optional.empty();
+        }
+
+        @Override
+        public List<MarketplaceItem> shopItems(UUID shopId) {
+            return SHOP_ID.equals(shopId) ? List.of(item) : List.of();
+        }
+
+        @Override
+        public Optional<PlayerShop> findShopByOwner(UUID ownerMemberId) {
+            return MEMBER_ID.equals(ownerMemberId) ? Optional.ofNullable(ownerShop) : Optional.empty();
+        }
+
+        @Override
+        public PlayerShop createShop(UUID ownerMemberId, ShopInput input) {
+            assertEquals(MEMBER_ID, ownerMemberId);
+            ownerShop = shop(UUID.fromString("10000000-0000-0000-0000-000000000002"), MEMBER_ID, input.name(), input.description());
+            return ownerShop;
+        }
+
+        @Override
+        public PlayerShop updateShop(UUID ownerMemberId, ShopInput input) {
+            assertNotNull(ownerShop);
+            ownerShop = shop(ownerShop.id(), ownerMemberId, input.name(), input.description());
+            return ownerShop;
+        }
+
+        @Override
+        public List<MarketplaceItem> ownerItems(UUID ownerMemberId) {
+            return MEMBER_ID.equals(ownerMemberId) && ownerShop != null ? List.of(item) : List.of();
+        }
+
+        @Override
+        public MarketplaceItem createItem(UUID ownerMemberId, ItemInput input) {
+            item = fromInput(input);
+            return item;
+        }
+
+        @Override
+        public MarketplaceItem updateItem(UUID ownerMemberId, UUID itemId, ItemInput input) {
+            assertEquals(ITEM_ID, itemId);
+            item = fromInput(input);
+            return item;
+        }
+
+        @Override
+        public void deactivateItem(UUID ownerMemberId, UUID itemId) {
+            itemDeactivated = true;
+        }
+
+        @Override
+        public MarketplaceCart cart(UUID memberId) {
+            return cartValue();
+        }
+
+        @Override
+        public MarketplaceCart setCartQuantity(UUID memberId, UUID itemId, int quantity) {
+            cartQuantity = quantity;
+            return cartValue();
+        }
+
+        @Override
+        public MarketplaceCart removeCartItem(UUID memberId, UUID itemId) {
+            cartQuantity = 0;
+            return cartValue();
+        }
+
+        @Override
+        public MarketplaceOrder checkout(UUID buyerMemberId, String actorDiscordId) {
+            assertEquals(MEMBER_ID, buyerMemberId);
+            assertEquals("123456789012345678", actorDiscordId);
+            return order();
+        }
+
+        @Override
+        public List<MarketplaceOrder> purchases(UUID buyerMemberId, int limit) {
+            lastPurchaseLimit = limit;
+            return List.of(order());
+        }
+
+        @Override
+        public List<MarketplaceOrderLine> sales(UUID sellerMemberId, int limit) {
+            lastSalesLimit = limit;
+            return List.of(line("PENDING_DELIVERY", null));
+        }
+
+        @Override
+        public MarketplaceOrderLine markDelivered(UUID sellerMemberId, UUID lineId) {
+            assertEquals(LINE_ID, lineId);
+            return line("DELIVERED", NOW.plusSeconds(60));
+        }
+
+        private MarketplaceCart cartValue() {
+            List<CartLine> lines = cartQuantity == 0 ? List.of() : List.of(new CartLine(item, cartQuantity, item.price() * cartQuantity));
+            return new MarketplaceCart(CART_ID, MEMBER_ID, lines, item.price() * cartQuantity, cartQuantity, NOW);
+        }
+
+        private MarketplaceOrder order() {
+            return new MarketplaceOrder(ORDER_ID, MEMBER_ID, 300L, "PAID", List.of(line("PENDING_DELIVERY", null)), NOW, NOW);
+        }
+
+        private MarketplaceOrderLine line(String status, Instant deliveredAt) {
+            return new MarketplaceOrderLine(LINE_ID, ORDER_ID, ITEM_ID, SHOP_ID, SELLER_ID, MEMBER_ID,
+                    "Builder", "Seller Shop", item.name(), item.imageUrl(), item.category(), 2, 150L, 300L,
+                    status, NOW, deliveredAt);
+        }
+
+        private MarketplaceItem fromInput(ItemInput input) {
+            return new MarketplaceItem(ITEM_ID, SHOP_ID, "Seller Shop", SELLER_ID,
+                    "987654321098765432", "Seller", input.name(), input.description(), input.imageUrl(),
+                    input.stock(), input.price(), input.category(), input.active(), NOW, NOW);
+        }
+
+        private static PlayerShop shop(UUID id, UUID ownerId, String name) {
+            return shop(id, ownerId, name, "Marketplace shop");
+        }
+
+        private static PlayerShop shop(UUID id, UUID ownerId, String name, String description) {
+            String discordId = MEMBER_ID.equals(ownerId) ? "123456789012345678" : "987654321098765432";
+            String username = MEMBER_ID.equals(ownerId) ? "Builder" : "Seller";
+            return new PlayerShop(id, ownerId, discordId, username, name, description, true, NOW, NOW);
+        }
+
+        private static MarketplaceItem item(String name, boolean active) {
+            return new MarketplaceItem(ITEM_ID, SHOP_ID, "Seller Shop", SELLER_ID,
+                    "987654321098765432", "Seller", name, "Ready to fight",
+                    "https://example.com/kit.png", 5, 150L, "Kits", active, NOW, NOW);
+        }
+    }
+}

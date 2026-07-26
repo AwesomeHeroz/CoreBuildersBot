@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Core Builders player marketplace">
+  <title>Core Builders Marketplace</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#marketplace" aria-label="Core Builders Marketplace home">
+      <span class="brand-mark">CB</span>
+      <span><strong>Core Builders</strong><small>Player Marketplace</small></span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <button class="nav-link active" data-section="marketplace">Marketplace</button>
+      <button class="nav-link" data-section="shop">My Shop</button>
+      <button class="nav-link" data-section="cart">Cart <span id="cart-count" class="badge">0</span></button>
+      <button class="nav-link" data-section="orders">Orders</button>
+      <button class="nav-link" data-section="sales">Sales</button>
+    </nav>
+    <div id="auth-area" class="auth-area">
+      <a class="button discord" href="/api/auth/login">Log in with Discord</a>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+
+    <section id="marketplace" class="view active" aria-labelledby="marketplace-title">
+      <div class="hero">
+        <div>
+          <p class="eyebrow">Member-to-member trading</p>
+          <h1 id="marketplace-title">Find what your next project needs.</h1>
+          <p>Search player shops, compare contribution-point prices, and check out securely from one cart.</p>
+        </div>
+        <div class="hero-stat"><span id="result-count">0</span><small>active listings</small></div>
+      </div>
+
+      <form id="search-form" class="filter-bar">
+        <label class="search-field">
+          <span class="sr-only">Search items</span>
+          <input id="search-query" type="search" maxlength="100" placeholder="Search item names and descriptions">
+        </label>
+        <label>
+          <span class="sr-only">Category</span>
+          <select id="category-filter"><option value="">All categories</option></select>
+        </label>
+        <label>
+          <span class="sr-only">Sort</span>
+          <select id="sort-filter">
+            <option value="newest">Newest</option>
+            <option value="price">Price</option>
+            <option value="name">Name</option>
+            <option value="stock">Stock</option>
+          </select>
+        </label>
+        <label>
+          <span class="sr-only">Direction</span>
+          <select id="direction-filter">
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
+          </select>
+        </label>
+        <button class="button primary" type="submit">Search</button>
+      </form>
+
+      <div id="item-grid" class="item-grid" aria-live="polite"></div>
+      <div class="pagination">
+        <button id="previous-page" class="button ghost" type="button">Previous</button>
+        <span id="page-label">Page 1</span>
+        <button id="next-page" class="button ghost" type="button">Next</button>
+      </div>
+    </section>
+
+    <section id="shop" class="view" aria-labelledby="shop-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">One shop per player</p><h1 id="shop-title">My Shop</h1></div>
+      </div>
+      <div id="shop-guest" class="empty-state">Log in with Discord to create and manage your shop.</div>
+      <div id="shop-dashboard" class="hidden">
+        <div class="dashboard-grid">
+          <form id="shop-form" class="panel form-panel">
+            <div class="panel-heading"><h2>Shop profile</h2><span id="shop-status" class="status-chip">Not created</span></div>
+            <label>Shop name<input id="shop-name" required minlength="3" maxlength="120"></label>
+            <label>Description<textarea id="shop-description" required minlength="3" maxlength="1000" rows="5"></textarea></label>
+            <button id="save-shop" class="button primary" type="submit">Create shop</button>
+          </form>
+
+          <form id="item-form" class="panel form-panel hidden">
+            <div class="panel-heading"><h2 id="item-form-title">Add listing</h2><button id="cancel-edit" class="text-button hidden" type="button">Cancel edit</button></div>
+            <input id="editing-item-id" type="hidden">
+            <label>Item name<input id="item-name" required minlength="2" maxlength="150"></label>
+            <label>Description<textarea id="item-description" required minlength="2" maxlength="1000" rows="4"></textarea></label>
+            <label>Image URL<input id="item-image" type="url" maxlength="1000" placeholder="https://..."></label>
+            <div class="form-row">
+              <label>Stock<input id="item-stock" type="number" min="0" max="1000000" value="1" required></label>
+              <label>Price<input id="item-price" type="number" min="1" max="1000000000" value="1" required></label>
+            </div>
+            <label>Category<input id="item-category" list="category-options" required minlength="2" maxlength="64"></label>
+            <datalist id="category-options"></datalist>
+            <label class="checkbox"><input id="item-active" type="checkbox" checked> Listing is active</label>
+            <button class="button primary" type="submit">Save listing</button>
+          </form>
+        </div>
+        <div class="panel listings-panel">
+          <div class="panel-heading"><h2>Your listings</h2><span id="my-listing-count" class="muted"></span></div>
+          <div id="my-items" class="management-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="cart" class="view" aria-labelledby="cart-title">
+      <div class="section-heading"><div><p class="eyebrow">Review before purchase</p><h1 id="cart-title">Your Cart</h1></div></div>
+      <div id="cart-guest" class="empty-state">Log in with Discord to use your cart.</div>
+      <div id="cart-panel" class="panel hidden">
+        <div id="cart-items" class="cart-list"></div>
+        <div class="cart-summary">
+          <div><small>Total</small><strong id="cart-total">0 points</strong></div>
+          <button id="checkout-button" class="button primary" type="button">Checkout</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="orders" class="view" aria-labelledby="orders-title">
+      <div class="section-heading"><div><p class="eyebrow">Purchase history</p><h1 id="orders-title">Your Orders</h1></div></div>
+      <div id="orders-guest" class="empty-state">Log in with Discord to view purchases.</div>
+      <div id="orders-list" class="stack hidden"></div>
+    </section>
+
+    <section id="sales" class="view" aria-labelledby="sales-title">
+      <div class="section-heading"><div><p class="eyebrow">Fulfil customer orders</p><h1 id="sales-title">Your Sales</h1></div></div>
+      <div id="sales-guest" class="empty-state">Log in with Discord to view sales.</div>
+      <div id="sales-list" class="stack hidden"></div>
+    </section>
+  </main>
+
+  <footer>Core Builders marketplace · Purchases use contribution points</footer>
+</body>
+</html>

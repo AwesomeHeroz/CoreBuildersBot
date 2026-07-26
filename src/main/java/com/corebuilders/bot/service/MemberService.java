@@ -3,14 +3,16 @@ package com.corebuilders.bot.service;
 import com.corebuilders.bot.db.QueryDslDatabase;
 import com.corebuilders.bot.model.Domain.ContributionCategory;
 import com.corebuilders.bot.model.Domain.Reputation;
-import com.corebuilders.bot.model.Domain.RankTier;
 import com.corebuilders.bot.model.Models.Achievement;
 import com.corebuilders.bot.model.Models.Member;
 import com.corebuilders.bot.model.Models.ProfileSnapshot;
+import com.corebuilders.bot.model.RankCatalog;
+import com.corebuilders.bot.model.RankDefinition;
 
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,10 +24,16 @@ import static com.corebuilders.bot.db.Schema.MEMBERS;
 public final class MemberService {
     private final QueryDslDatabase database;
     private final LedgerService ledgerService;
+    private final RankCatalog ranks;
 
     public MemberService(QueryDslDatabase database, LedgerService ledgerService) {
-        this.database = database;
-        this.ledgerService = ledgerService;
+        this(database, ledgerService, RankCatalog.defaults());
+    }
+
+    public MemberService(QueryDslDatabase database, LedgerService ledgerService, RankCatalog ranks) {
+        this.database = Objects.requireNonNull(database, "database");
+        this.ledgerService = Objects.requireNonNull(ledgerService, "ledgerService");
+        this.ranks = Objects.requireNonNull(ranks, "ranks");
     }
 
     public Member ensureMember(String discordUserId, String username) {
@@ -132,13 +140,15 @@ public final class MemberService {
             categories.put(category, ledgerService.categoryXp(member.id(), category));
         }
         List<Achievement> achievements = achievementService.unlocked(member.id());
+        RankDefinition rank = ranks.rankForXp(totalXp);
         return new ProfileSnapshot(
                 member,
                 totalXp,
                 credits,
                 weeklyXp,
-                RankTier.fromXp(totalXp),
-                (int) Math.max(0, totalXp / 500),
+                rank,
+                ranks.next(rank),
+                ranks.levelForXp(totalXp),
                 categories,
                 achievements
         );

@@ -25,6 +25,91 @@ music:
   allow-streams: true
   idle-disconnect-seconds: 300
   load-timeout-seconds: 20
+progression:
+  # Used only for the displayed level. Rank thresholds are configured independently below.
+  xp-per-level: 500
+  ranks:
+    - code: "RECRUIT"
+      name: "Recruit"
+      minimum-xp: 0
+      discord-role-id: ""
+    - code: "MEMBER"
+      name: "Member"
+      minimum-xp: 500
+      discord-role-id: ""
+    - code: "CONTRIBUTOR"
+      name: "Contributor"
+      minimum-xp: 1500
+      discord-role-id: ""
+    - code: "VETERAN"
+      name: "Veteran"
+      minimum-xp: 4000
+      discord-role-id: ""
+    - code: "ELITE"
+      name: "Elite"
+      minimum-xp: 8000
+      discord-role-id: ""
+    - code: "NOBLE"
+      name: "Noble"
+      minimum-xp: 15000
+      discord-role-id: ""
+    - code: "CORE_LEGEND"
+      name: "Core Legend"
+      minimum-xp: 30000
+      discord-role-id: ""
+
+shop:
+  # Existing database items omitted from this list are disabled, never deleted.
+  disable-unlisted-items: true
+
+  # Keep false so purchases survive restarts. Enable only when YAML is the stock source of truth.
+  sync-stock-on-startup: false
+
+  # stock: unlimited (or null/omitted) means the item has no stock limit.
+  # Set items: [] to disable the whole configured catalog when disable-unlisted-items is true.
+  items:
+    - code: "BASIC_GEAR"
+      name: "Basic Gear Shulker"
+      description: "A basic gear package for group members."
+      price: 250
+      stock: unlimited
+      active: true
+    - code: "SURVIVAL_KIT"
+      name: "Survival Kit"
+      description: "A complete survival resupply kit."
+      price: 400
+      stock: unlimited
+      active: true
+    - code: "XP_SHULKER"
+      name: "XP Bottle Shulker"
+      description: "A shulker of XP bottles."
+      price: 500
+      stock: 25
+      active: true
+    - code: "BUILDING_PACKAGE"
+      name: "Building Material Package"
+      description: "A standard package of building materials."
+      price: 750
+      stock: unlimited
+      active: true
+    - code: "LARGE_MATERIAL_REQUEST"
+      name: "Large Material Request"
+      description: "A larger custom material allocation."
+      price: 2000
+      stock: unlimited
+      active: true
+    - code: "CUSTOM_MAPART"
+      name: "Custom Mapart Request"
+      description: "Request a custom group mapart project."
+      price: 3000
+      stock: unlimited
+      active: true
+    - code: "PROJECT_ASSISTANCE"
+      name: "Group Project Assistance"
+      description: "Request organized group assistance for a project."
+      price: 5000
+      stock: unlimited
+      active: true
 
   # Empty means anyone in the same voice channel can control playback.
   controller-role-ids: []
@@ -57,9 +142,9 @@ applications:
       label: "Apply Now"
 
   channels:
-    pending: "pending-applications"
-    accepted: "accepted-applications"
-    rejected: "rejected-applications"
+    pending: "pending"
+    accepted: "accepted"
+    rejected: "denied"
 
   reviewer-role-ids: []
   approval:
@@ -147,3 +232,25 @@ database:
 minecraft:
   link-code-expiry-minutes: 10
   leaderboard-size: 10
+
+website:
+  # Starts an embedded HTTP server inside the Paper plugin.
+  enabled: false
+  bind-address: "0.0.0.0"
+  port: 8080
+  # Public origin only, with no path, query, or fragment. Use HTTPS in production.
+  public-base-url: "http://localhost:8080"
+  worker-threads: 16
+  max-request-bytes: 1048576
+
+  discord-oauth:
+    client-id: "" # Prefer COREBOT_DISCORD_OAUTH_CLIENT_ID
+    client-secret: "" # Prefer COREBOT_DISCORD_OAUTH_CLIENT_SECRET
+    # Leave blank to use <public-base-url>/api/auth/callback.
+    redirect-uri: "" # Prefer COREBOT_DISCORD_OAUTH_REDIRECT_URI
+    require-guild-membership: true
+
+  cookies:
+    # Keep true behind HTTPS. Set false only for local HTTP development.
+    secure: true
+    session-hours: 24

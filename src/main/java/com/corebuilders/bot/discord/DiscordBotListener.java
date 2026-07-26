@@ -9,6 +9,7 @@ import com.corebuilders.bot.external.NewPlayersProvider;
 import com.corebuilders.bot.external.NewPlayersResponse;
 import com.corebuilders.bot.model.Domain.*;
 import com.corebuilders.bot.model.Models.*;
+import com.corebuilders.bot.model.RankDefinition;
 import com.corebuilders.bot.service.*;
 import com.corebuilders.bot.util.ErrorMessages;
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -331,6 +332,7 @@ public final class DiscordBotListener extends ListenerAdapter {
         ProfileSnapshot p = members.snapshot(target.getId(), achievements);
 
         RankTier next = p.rank().next();
+        RankDefinition next = p.nextRank();
         String progress = next == null
                 ? "Maximum rank reached"
                 : p.totalXp() + " / " + next.minimumXp() + " CXP to " + next.display();
@@ -841,13 +843,7 @@ public final class DiscordBotListener extends ListenerAdapter {
         Guild guild = event.getGuild();
         String sub = requiredSubcommand(event);
         if ("roles".equals(sub)) {
-            List<String> created = new ArrayList<>();
-            for (RankTier tier : RankTier.values()) {
-                if (guild.getRolesByName(tier.display(), true).isEmpty()) {
-                    guild.createRole().setName(tier.display()).complete();
-                    created.add(tier.display());
-                }
-            }
+            List<String> created = rankRoles.createMissingRoles(guild);
             return views.simple("Progression Roles Ready",
                     created.isEmpty() ? "All progression roles already existed."
                             : "Created: " + String.join(", ", created)

@@ -51,43 +51,14 @@ public final class Domain {
         MISSION,
         ACHIEVEMENT,
         SHOP_PURCHASE,
+        MARKETPLACE_PURCHASE,
+        MARKETPLACE_SALE,
+        MARKETPLACE_REFUND,
         ADMIN_ADJUSTMENT,
         REVERSAL
     }
 
     public enum AchievementMetric { TOTAL_XP, CATEGORY_XP, APPROVED_CONTRIBUTIONS }
 
-    public enum RankTier {
-        RECRUIT("Recruit", 0),
-        MEMBER("Member", 500),
-        CONTRIBUTOR("Contributor", 1_500),
-        VETERAN("Veteran", 4_000),
-        ELITE("Elite", 8_000),
-        NOBLE("Noble", 15_000),
-        CORE_LEGEND("Core Legend", 30_000);
 
-        private final String display;
-        private final long minimumXp;
-
-        RankTier(String display, long minimumXp) {
-            this.display = display;
-            this.minimumXp = minimumXp;
-        }
-
-        public String display() { return display; }
-        public long minimumXp() { return minimumXp; }
-
-        public static RankTier fromXp(long xp) {
-            RankTier result = RECRUIT;
-            for (RankTier tier : values()) {
-                if (xp >= tier.minimumXp) result = tier;
-            }
-            return result;
-        }
-
-        public RankTier next() {
-            int i = ordinal() + 1;
-            return i < values().length ? values()[i] : null;
-        }
-    }
 }
