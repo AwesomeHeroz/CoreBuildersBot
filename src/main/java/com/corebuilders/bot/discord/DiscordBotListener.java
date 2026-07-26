@@ -331,7 +331,6 @@ public final class DiscordBotListener extends ListenerAdapter {
         members.ensureMember(target.getId(), target.getName());
         ProfileSnapshot p = members.snapshot(target.getId(), achievements);
 
-        RankTier next = p.rank().next();
         RankDefinition next = p.nextRank();
         String progress = next == null
                 ? "Maximum rank reached"
