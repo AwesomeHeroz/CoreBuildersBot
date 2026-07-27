@@ -71,7 +71,7 @@ public final class ShopService {
                     updated++;
                 }
             }
-            int disabled = 0;
+            long disabled = 0;
             if (catalog.disableUnlistedItems()) {
                 List<String> configuredCodes = catalog.items().stream().map(ShopItem::code).toList();
                 disabled = database.query(q -> {
@@ -81,7 +81,7 @@ public final class ShopService {
                     return update.execute();
                 });
             }
-            return new CatalogSyncResult(inserted, updated, disabled);
+            return new CatalogSyncResult(inserted, updated, (int) disabled);
         });
     }
 
