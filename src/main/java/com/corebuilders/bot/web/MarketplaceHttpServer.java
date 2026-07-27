@@ -76,6 +76,11 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         server.start();
         logger.info("Marketplace website listening on " + config.bindAddress() + ":" + port()
                 + "; public URL " + config.publicBaseUrl());
+        logger.info("Discord OAuth redirect URI (register exactly, without a trailing slash): "
+                + config.oauthRedirectUri());
+        if ("http".equalsIgnoreCase(config.publicBaseUrl().getScheme())) {
+            logger.warning("Marketplace public URL uses HTTP. Prefer HTTPS for production and keep website.cookies.secure=false while using HTTP.");
+        }
     }
 
     public int port() {

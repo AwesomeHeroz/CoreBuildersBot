@@ -4,6 +4,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Locale;
 
 /** Validated configuration for the embedded marketplace website and Discord OAuth login. */
 public record WebsiteConfig(
@@ -20,6 +21,8 @@ public record WebsiteConfig(
         int maxRequestBytes,
         int workerThreads
 ) {
+    public static final String OAUTH_CALLBACK_PATH = "/api/auth/callback";
+
     public static WebsiteConfig from(FileConfiguration config) {
         boolean enabled = config.getBoolean("website.enabled", false);
         String bind = value("COREBOT_WEB_BIND_ADDRESS", config.getString("website.bind-address", "0.0.0.0"));
@@ -27,7 +30,8 @@ public record WebsiteConfig(
         String publicUrl = value("COREBOT_WEB_PUBLIC_BASE_URL", config.getString("website.public-base-url", ""));
         String clientId = value("COREBOT_DISCORD_OAUTH_CLIENT_ID", config.getString("website.discord-oauth.client-id", ""));
         String clientSecret = value("COREBOT_DISCORD_OAUTH_CLIENT_SECRET", config.getString("website.discord-oauth.client-secret", ""));
-        String redirect = value("COREBOT_DISCORD_OAUTH_REDIRECT_URI", config.getString("website.discord-oauth.redirect-uri", ""));
+        String configuredRedirect = value("COREBOT_DISCORD_OAUTH_REDIRECT_URI",
+                config.getString("website.discord-oauth.redirect-uri", ""));
         boolean requireGuild = config.getBoolean("website.discord-oauth.require-guild-membership", true);
         boolean secure = config.getBoolean("website.cookies.secure", true);
         int sessionHours = integer("COREBOT_WEB_SESSION_HOURS",
@@ -38,8 +42,10 @@ public record WebsiteConfig(
                 config.getInt("website.worker-threads", 16), 2, 256, "website.worker-threads");
 
         if (!enabled) {
-            URI base = publicUrl.isBlank() ? URI.create("http://localhost:" + port) : absoluteHttpUri(publicUrl, "website.public-base-url");
-            URI callback = redirect.isBlank() ? base.resolve("/api/auth/callback") : absoluteHttpUri(redirect, "website.discord-oauth.redirect-uri");
+            URI base = publicUrl.isBlank()
+                    ? URI.create("http://localhost:" + port)
+                    : absoluteHttpUri(publicUrl, "website.public-base-url");
+            URI callback = canonicalCallback(base);
             return new WebsiteConfig(false, bind, port, base, clientId, clientSecret, callback,
                     requireGuild, secure, Duration.ofHours(sessionHours), maxBytes, workers);
         }
@@ -47,8 +53,11 @@ public record WebsiteConfig(
         if (bind.isBlank()) throw new IllegalStateException("website.bind-address cannot be blank.");
         URI base = absoluteHttpUri(required(publicUrl, "website.public-base-url / COREBOT_WEB_PUBLIC_BASE_URL"),
                 "website.public-base-url");
-        URI callback = redirect.isBlank() ? base.resolve("/api/auth/callback")
-                : absoluteHttpUri(redirect, "website.discord-oauth.redirect-uri");
+        validatePublicBaseUrl(base, secure);
+
+        URI callback = canonicalCallback(base);
+        validateConfiguredRedirect(configuredRedirect, callback);
+
         String cleanClientId = required(clientId, "website.discord-oauth.client-id / COREBOT_DISCORD_OAUTH_CLIENT_ID");
         if (!cleanClientId.matches("\\d{15,22}")) {
             throw new IllegalStateException("Discord OAuth client ID must be a Discord snowflake.");
@@ -59,12 +68,50 @@ public record WebsiteConfig(
                 requireGuild, secure, Duration.ofHours(sessionHours), maxBytes, workers);
     }
 
+    private static URI canonicalCallback(URI publicBaseUrl) {
+        return publicBaseUrl.resolve(OAUTH_CALLBACK_PATH);
+    }
+
+    private static void validateConfiguredRedirect(String configuredRedirect, URI canonicalCallback) {
+        if (configuredRedirect == null || configuredRedirect.isBlank()) return;
+        URI configured = absoluteHttpUri(configuredRedirect, "website.discord-oauth.redirect-uri");
+        if (!configured.equals(canonicalCallback)) {
+            throw new IllegalStateException(
+                    "website.discord-oauth.redirect-uri / COREBOT_DISCORD_OAUTH_REDIRECT_URI must exactly match "
+                            + canonicalCallback + ". Prefer leaving it blank; the callback is derived from website.public-base-url."
+            );
+        }
+    }
+
+    private static void validatePublicBaseUrl(URI base, boolean secureCookies) {
+        String host = base.getHost().toLowerCase(Locale.ROOT);
+        if (isAnyLocalAddress(host)) {
+            throw new IllegalStateException(
+                    "website.public-base-url cannot use " + host + ". Use the real public hostname, or localhost for local testing."
+            );
+        }
+        boolean https = "https".equalsIgnoreCase(base.getScheme());
+        if (!https && secureCookies) {
+            throw new IllegalStateException(
+                    "website.cookies.secure must be false when website.public-base-url uses HTTP."
+            );
+        }
+    }
+
+    private static boolean isAnyLocalAddress(String host) {
+        return "0.0.0.0".equals(host) || "::".equals(host) || "[::]".equals(host);
+    }
+
+
     private static URI absoluteHttpUri(String value, String path) {
         try {
             URI uri = URI.create(value.trim());
             String scheme = uri.getScheme();
             if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) || uri.getHost() == null) {
                 throw new IllegalStateException(path + " must be an absolute HTTP or HTTPS URL.");
+            }
+            if (uri.getRawUserInfo() != null) {
+                throw new IllegalStateException(path + " cannot contain user information.");
             }
             if (uri.getRawQuery() != null || uri.getRawFragment() != null) {
                 throw new IllegalStateException(path + " cannot contain a query or fragment.");

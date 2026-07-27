@@ -11,21 +11,33 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class DiscordOAuthHttpClientTest {
+    private static final String CALLBACK = "http://127.0.0.1/api/auth/callback";
+
     private HttpServer server;
     private final AtomicBoolean includeGuild = new AtomicBoolean(true);
+    private final AtomicReference<String> tokenRequestBody = new AtomicReference<>();
 
     @BeforeEach
     void startServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/token", exchange -> json(exchange, 200, "{\"access_token\":\"access\"}"));
+        server.createContext("/token", exchange -> {
+            tokenRequestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            json(exchange, 200, "{\"access_token\":\"access\"}");
+        });
         server.createContext("/user", exchange -> json(exchange, 200,
                 "{\"id\":\"123456789012345678\",\"username\":\"builder\",\"global_name\":\"Builder\",\"avatar\":\"abc\"}"));
         server.createContext("/guilds", exchange -> json(exchange, 200,
@@ -39,14 +51,25 @@ class DiscordOAuthHttpClientTest {
     }
 
     @Test
-    void buildsAuthorizationUrlAndExchangesCode() {
+    void buildsAuthorizationUrlWithExactCanonicalRedirectAndExchangesCode() {
         DiscordOAuthHttpClient client = client();
 
-        URI authorization = client.authorizationUri("state-value");
-        DiscordIdentity identity = client.exchange("code-value");
+        URI authorization = client.authorizationUri("state value");
+        DiscordIdentity identity = client.exchange("code value");
 
-        assertTrue(authorization.toString().contains("scope=identify+guilds"));
-        assertTrue(authorization.toString().contains("state=state-value"));
+        assertTrue(authorization.getRawQuery().contains("scope=identify%20guilds"));
+        assertFalse(authorization.getRawQuery().contains("scope=identify+guilds"));
+        Map<String, String> authorizationQuery = decodeParameters(authorization.getRawQuery());
+        assertEquals("123456789012345678", authorizationQuery.get("client_id"));
+        assertEquals(CALLBACK, authorizationQuery.get("redirect_uri"));
+        assertEquals("identify guilds", authorizationQuery.get("scope"));
+        assertEquals("state value", authorizationQuery.get("state"));
+
+        Map<String, String> tokenForm = decodeParameters(tokenRequestBody.get());
+        assertEquals(CALLBACK, tokenForm.get("redirect_uri"));
+        assertEquals("code value", tokenForm.get("code"));
+        assertEquals("authorization_code", tokenForm.get("grant_type"));
+
         assertEquals("123456789012345678", identity.id());
         assertEquals("Builder", identity.displayName());
         assertTrue(identity.avatarUrl().contains("/avatars/123456789012345678/abc.png"));
@@ -63,7 +86,7 @@ class DiscordOAuthHttpClientTest {
         int port = server.getAddress().getPort();
         WebsiteConfig config = new WebsiteConfig(
                 true, "127.0.0.1", 0, URI.create("http://127.0.0.1"),
-                "123456789012345678", "secret", URI.create("http://127.0.0.1/api/auth/callback"),
+                "123456789012345678", "secret", URI.create(CALLBACK),
                 true, false, Duration.ofHours(1), 1024 * 1024, 4
         );
         return new DiscordOAuthHttpClient(
@@ -76,6 +99,22 @@ class DiscordOAuthHttpClientTest {
                 URI.create("http://127.0.0.1:" + port + "/user"),
                 URI.create("http://127.0.0.1:" + port + "/guilds")
         );
+    }
+
+    private static Map<String, String> decodeParameters(String input) {
+        if (input == null || input.isBlank()) return Map.of();
+        return Arrays.stream(input.split("&"))
+                .map(part -> part.split("=", 2))
+                .collect(Collectors.toMap(
+                        pair -> decode(pair[0]),
+                        pair -> pair.length == 2 ? decode(pair[1]) : "",
+                        (first, ignored) -> first,
+                        ConcurrentHashMap::new
+                ));
+    }
+
+    private static String decode(String value) {
+        return URLDecoder.decode(value, StandardCharsets.UTF_8);
     }
 
     private static void json(HttpExchange exchange, int status, String body) throws IOException {

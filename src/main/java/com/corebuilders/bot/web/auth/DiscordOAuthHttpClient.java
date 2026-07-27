@@ -62,11 +62,11 @@ public final class DiscordOAuthHttpClient implements DiscordOAuth {
     public URI authorizationUri(String state) {
         if (state == null || state.isBlank()) throw new IllegalArgumentException("OAuth state is required.");
         String scope = config.requireGuildMembership() ? "identify guilds" : "identify";
-        String query = "client_id=" + encode(config.oauthClientId())
+        String query = "client_id=" + queryEncode(config.oauthClientId())
                 + "&response_type=code"
-                + "&redirect_uri=" + encode(config.oauthRedirectUri().toString())
-                + "&scope=" + encode(scope)
-                + "&state=" + encode(state);
+                + "&redirect_uri=" + queryEncode(config.oauthRedirectUri().toString())
+                + "&scope=" + queryEncode(scope)
+                + "&state=" + queryEncode(state);
         return URI.create(authorizeEndpoint + "?" + query);
     }
 
@@ -88,11 +88,11 @@ public final class DiscordOAuthHttpClient implements DiscordOAuth {
     }
 
     private String exchangeToken(String code) {
-        String body = "client_id=" + encode(config.oauthClientId())
-                + "&client_secret=" + encode(config.oauthClientSecret())
+        String body = "client_id=" + formEncode(config.oauthClientId())
+                + "&client_secret=" + formEncode(config.oauthClientSecret())
                 + "&grant_type=authorization_code"
-                + "&code=" + encode(code)
-                + "&redirect_uri=" + encode(config.oauthRedirectUri().toString());
+                + "&code=" + formEncode(code)
+                + "&redirect_uri=" + formEncode(config.oauthRedirectUri().toString());
         HttpRequest request = HttpRequest.newBuilder(tokenEndpoint)
                 .timeout(Duration.ofSeconds(15))
                 .header("Accept", "application/json")
@@ -108,7 +108,7 @@ public final class DiscordOAuthHttpClient implements DiscordOAuth {
     private boolean belongsToGuild(String accessToken) {
         String after = null;
         for (int page = 0; page < 20; page++) {
-            String query = "?limit=200" + (after == null ? "" : "&after=" + encode(after));
+            String query = "?limit=200" + (after == null ? "" : "&after=" + queryEncode(after));
             JsonNode guilds = getJson(URI.create(guildsEndpoint + query), accessToken);
             if (!guilds.isArray()) throw new OAuthException(INVALID_RESPONSE, "Discord guild response was invalid.");
             String last = null;
@@ -168,7 +168,12 @@ public final class DiscordOAuthHttpClient implements DiscordOAuth {
         return "https://cdn.discordapp.com/avatars/" + userId + "/" + avatarHash + "." + extension + "?size=128";
     }
 
-    private static String encode(String value) {
+    private static String queryEncode(String value) {
+        // URI query spaces should be percent-encoded, not represented as form-style plus signs.
+        return formEncode(value).replace("+", "%20");
+    }
+
+    private static String formEncode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }
