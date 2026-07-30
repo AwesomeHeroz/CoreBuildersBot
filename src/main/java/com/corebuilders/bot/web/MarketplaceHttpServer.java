@@ -515,6 +515,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             case "/", "/index.html" -> "/web/index.html";
             case "/app.js" -> "/web/app.js";
             case "/styles.css" -> "/web/styles.css";
+            case "/jquery-3.7.1.min.js" -> "/web/jquery-3.7.1.min.js";
             default -> "/web/index.html";
         };
         byte[] bytes;
