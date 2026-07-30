@@ -19,6 +19,187 @@ const fallbackImage = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+const jq = window.jQuery;
+
+function requireJQuery() {
+  if (!jq) throw new Error('The website modal library could not be loaded. Refresh the page and try again.');
+  return jq;
+}
+
+function setModalOpen(open) {
+  document.body.classList.toggle('modal-open', open);
+}
+
+function showActionModal({
+  title,
+  message,
+  confirmText = 'Continue',
+  cancelText = 'Cancel',
+  danger = false,
+  input = null
+}) {
+  const $jq = requireJQuery();
+  const $modal = $jq('#action-modal');
+  const previousFocus = document.activeElement;
+
+  $jq('#action-modal-title').text(title || 'Please confirm');
+  $jq('#action-modal-message').text(message || '');
+  $jq('#action-modal-confirm')
+    .text(confirmText)
+    .toggleClass('danger', Boolean(danger))
+    .toggleClass('primary', !danger);
+  $jq('#action-modal-cancel').text(cancelText);
+  $jq('#action-modal-error').addClass('hidden').text('');
+
+  const $inputGroup = $jq('#action-modal-input-group');
+  const $input = $jq('#action-modal-input');
+  if (input) {
+    $inputGroup.removeClass('hidden');
+    $jq('#action-modal-input-label').text(input.label || 'Details');
+    $jq('#action-modal-input-help').text(input.help || '');
+    $input
+      .val(input.value || '')
+      .attr('minlength', input.minLength || 0)
+      .attr('maxlength', input.maxLength || 500)
+      .attr('placeholder', input.placeholder || '');
+  } else {
+    $inputGroup.addClass('hidden');
+    $input.val('').removeAttr('minlength maxlength placeholder');
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      $modal.addClass('hidden').attr('aria-hidden', 'true').off('.coreModal');
+      $jq(document).off('.coreModal');
+      $jq('#action-modal-confirm, #action-modal-cancel, #action-modal-close').off('.coreModal');
+      setModalOpen(false);
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+      resolve(value);
+    };
+
+    const cancel = () => finish(input ? null : false);
+    const accept = () => {
+      if (!input) {
+        finish(true);
+        return;
+      }
+      const value = String($input.val() || '').trim();
+      const minLength = input.minLength || 0;
+      const maxLength = input.maxLength || 500;
+      if (value.length < minLength || value.length > maxLength) {
+        $jq('#action-modal-error')
+          .text(`Enter between ${minLength} and ${maxLength} characters.`)
+          .removeClass('hidden');
+        $input.trigger('focus');
+        return;
+      }
+      finish(value);
+    };
+
+    $jq('#action-modal-confirm').on('click.coreModal', accept);
+    $jq('#action-modal-cancel, #action-modal-close').on('click.coreModal', cancel);
+    $modal.on('mousedown.coreModal', (event) => {
+      if (event.target === $modal.get(0)) cancel();
+    });
+    $jq(document).on('keydown.coreModal', (event) => {
+      if (event.key === 'Escape') cancel();
+      if (event.key === 'Enter' && !input && !$jq(event.target).is('textarea')) accept();
+    });
+
+    $modal.removeClass('hidden').attr('aria-hidden', 'false');
+    setModalOpen(true);
+    window.setTimeout(() => (input ? $input : $jq('#action-modal-confirm')).trigger('focus'), 0);
+  });
+}
+
+function showConfirmModal(options) {
+  return showActionModal(options);
+}
+
+function showPromptModal(options) {
+  return showActionModal(options);
+}
+
+function openMinecraftLoginModal() {
+  const $jq = requireJQuery();
+  const $modal = $jq('#minecraft-login-modal');
+  const previousFocus = document.activeElement;
+  let closed = false;
+  let decisionResolver = null;
+
+  const finishDecision = (accepted) => {
+    if (!decisionResolver) return;
+    const resolve = decisionResolver;
+    decisionResolver = null;
+    resolve(accepted);
+  };
+
+  const close = (accepted = false) => {
+    if (closed) return;
+    closed = true;
+    finishDecision(accepted);
+    $modal.addClass('hidden').attr('aria-hidden', 'true').off('.minecraftLogin');
+    $jq(document).off('.minecraftLogin');
+    $jq('#minecraft-login-cancel, #minecraft-login-close, #minecraft-login-confirm').off('.minecraftLogin');
+    setModalOpen(false);
+    if (previousFocus instanceof HTMLElement) previousFocus.focus();
+  };
+
+  $jq('#minecraft-login-title').text('Verify login in Minecraft');
+  $jq('#minecraft-login-status').text('Creating a one-time login code…');
+  $jq('#minecraft-login-code').text('--------');
+  $jq('#minecraft-login-command').text('');
+  $jq('#minecraft-login-challenge').removeClass('hidden');
+  $jq('#minecraft-login-account').addClass('hidden');
+  $jq('#minecraft-login-confirm').prop('disabled', false).text('Continue').addClass('hidden');
+  $jq('#minecraft-login-cancel').text('Cancel');
+
+  $jq('#minecraft-login-cancel, #minecraft-login-close').on('click.minecraftLogin', () => close(false));
+  $modal.on('mousedown.minecraftLogin', (event) => {
+    if (event.target === $modal.get(0)) close(false);
+  });
+  $jq(document).on('keydown.minecraftLogin', (event) => {
+    if (event.key === 'Escape') close(false);
+  });
+
+  $modal.removeClass('hidden').attr('aria-hidden', 'false');
+  setModalOpen(true);
+  window.setTimeout(() => $jq('#minecraft-login-cancel').trigger('focus'), 0);
+
+  return {
+    isOpen: () => !closed,
+    showChallenge(challenge) {
+      if (closed) return;
+      $jq('#minecraft-login-code').text(challenge.code);
+      $jq('#minecraft-login-command').text(challenge.command);
+      $jq('#minecraft-login-status').text('Waiting for verification from the game…');
+    },
+    confirmAccount(minecraftName) {
+      if (closed) return Promise.resolve(false);
+      $jq('#minecraft-login-title').text('Confirm Minecraft account');
+      $jq('#minecraft-login-status').text('The login code was verified successfully.');
+      $jq('#minecraft-login-challenge').addClass('hidden');
+      $jq('#minecraft-login-name').text(minecraftName);
+      $jq('#minecraft-login-account').removeClass('hidden');
+      $jq('#minecraft-login-confirm').removeClass('hidden');
+      $jq('#minecraft-login-cancel').text('Use another account');
+      return new Promise((resolve) => {
+        decisionResolver = resolve;
+        $jq('#minecraft-login-confirm')
+          .off('click.minecraftLoginConfirm')
+          .on('click.minecraftLoginConfirm', () => {
+            finishDecision(true);
+            $jq('#minecraft-login-confirm').prop('disabled', true).text('Signing in…');
+          })
+          .trigger('focus');
+      });
+    },
+    close
+  };
+}
 const points = (value) => `${new Intl.NumberFormat('en-US').format(value || 0)} contribution points`;
 const shortPoints = (value) => `${new Intl.NumberFormat('en-US').format(value || 0)} CP`;
 const dateTime = (value) => value ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
@@ -80,46 +261,24 @@ async function loadMe() {
 }
 
 async function startMinecraftLogin() {
-  const dialog = element('dialog', 'minecraft-login-dialog');
-  const panel = element('div', 'minecraft-login-panel');
-  panel.append(element('h2', '', 'Verify login in Minecraft'));
-  const status = element('p', 'muted', 'Creating a one-time login code…');
-  const code = element('div', 'minecraft-login-code', '--------');
-  const command = element('code', 'minecraft-login-command', '');
-  const instructions = element(
-    'p',
-    '',
-    'Join the Minecraft server with the account you want to use, then run this command in chat.'
-  );
-  const cancel = element('button', 'button ghost', 'Cancel');
-  cancel.type = 'button';
-  cancel.addEventListener('click', () => dialog.close());
-  panel.append(status, code, command, instructions, cancel);
-  dialog.append(panel);
-  document.body.append(dialog);
-  dialog.addEventListener('close', () => dialog.remove(), { once: true });
-  dialog.showModal();
-
+  let modal;
   try {
+    modal = openMinecraftLoginModal();
     const challenge = await api('/api/auth/challenge', { method: 'POST' });
-    if (!dialog.isConnected) return;
-    code.textContent = challenge.code;
-    command.textContent = challenge.command;
-    status.textContent = 'Waiting for verification from the game…';
+    if (!modal.isOpen()) return;
+    modal.showChallenge(challenge);
 
-    while (dialog.isConnected && dialog.open) {
+    while (modal.isOpen()) {
       await new Promise((resolve) => window.setTimeout(resolve, 1500));
-      if (!dialog.isConnected || !dialog.open) return;
+      if (!modal.isOpen()) return;
       const result = await api('/api/auth/complete', {
         method: 'POST',
         body: { challengeToken: challenge.challengeToken, confirm: false }
       });
       if (result.status === 'ready') {
-        const accepted = window.confirm(
-          `Minecraft account “${result.minecraftName}” verified this login. Continue with this account?`
-        );
-        if (!accepted) {
-          dialog.close();
+        const accepted = await modal.confirmAccount(result.minecraftName);
+        if (!accepted || !modal.isOpen()) {
+          modal.close();
           notify('Login cancelled. Generate a new code when ready.');
           return;
         }
@@ -128,7 +287,7 @@ async function startMinecraftLogin() {
           body: { challengeToken: challenge.challengeToken, confirm: true }
         });
         if (completed.status !== 'completed') throw new Error('Login could not be completed.');
-        dialog.close();
+        modal.close(true);
         await loadMe();
         if (state.me?.discordUserId) await loadCart();
         notify(state.me?.discordUserId
@@ -137,7 +296,7 @@ async function startMinecraftLogin() {
         return;
       }
       if (result.status === 'completed') {
-        dialog.close();
+        modal.close(true);
         await loadMe();
         if (state.me?.discordUserId) await loadCart();
         notify(state.me?.discordUserId
@@ -147,7 +306,7 @@ async function startMinecraftLogin() {
       }
     }
   } catch (error) {
-    if (dialog.isConnected) dialog.close();
+    modal?.close();
     notify(error.message, true);
   }
 }
@@ -371,7 +530,13 @@ function resetItemForm() {
 }
 
 async function deactivateItem(item) {
-  if (!window.confirm(`Deactivate “${item.name}”? It will also be removed from active carts.`)) return;
+  const accepted = await showConfirmModal({
+    title: 'Deactivate listing?',
+    message: `Deactivate “${item.name}”? It will also be removed from active carts.`,
+    confirmText: 'Deactivate',
+    danger: true
+  });
+  if (!accepted) return;
   try {
     await api(`/api/me/shop/items/${item.id}`, { method: 'DELETE' });
     await Promise.all([loadShop(), loadItems(), loadCategories()]);
@@ -433,7 +598,12 @@ function renderCart() {
 }
 
 async function checkout() {
-  if (!window.confirm(`Spend ${points(state.cart?.total || 0)} and place this order?`)) return;
+  const accepted = await showConfirmModal({
+    title: 'Confirm checkout',
+    message: `Spend ${points(state.cart?.total || 0)} and place this order?`,
+    confirmText: 'Place order'
+  });
+  if (!accepted) return;
   const button = $('#checkout-button');
   button.disabled = true;
   try {
@@ -489,7 +659,13 @@ function renderOrders(orders) {
         const cancel = element('button', 'button ghost', 'Cancel');
         cancel.type = 'button';
         cancel.addEventListener('click', async () => {
-          if (!window.confirm(`Cancel ${line.itemName} and refund ${shortPoints(line.lineTotal)}?`)) return;
+          const accepted = await showConfirmModal({
+            title: 'Cancel order item?',
+            message: `Cancel ${line.itemName} and refund ${shortPoints(line.lineTotal)}?`,
+            confirmText: 'Cancel and refund',
+            danger: true
+          });
+          if (!accepted) return;
           try {
             await api(`/api/orders/${line.id}/cancel`, { method: 'POST' });
             await Promise.all([loadOrders(), loadMe(), loadItems()]);
@@ -502,7 +678,12 @@ function renderOrders(orders) {
         const confirm = element('button', 'button primary', 'Confirm received');
         confirm.type = 'button';
         confirm.addEventListener('click', async () => {
-          if (!window.confirm(`Confirm that you received ${line.itemName}? This releases payment to the seller.`)) return;
+          const accepted = await showConfirmModal({
+            title: 'Confirm delivery',
+            message: `Confirm that you received ${line.itemName}? This releases payment to the seller.`,
+            confirmText: 'Confirm received'
+          });
+          if (!accepted) return;
           try {
             await api(`/api/orders/${line.id}/confirm`, { method: 'POST' });
             await Promise.all([loadOrders(), loadMe()]);
@@ -512,7 +693,18 @@ function renderOrders(orders) {
         const dispute = element('button', 'button ghost', 'Report problem');
         dispute.type = 'button';
         dispute.addEventListener('click', async () => {
-          const reason = window.prompt('Describe the delivery problem (5–500 characters):');
+          const reason = await showPromptModal({
+            title: 'Report a delivery problem',
+            message: `Describe the problem with ${line.itemName}. Staff will review the dispute.`,
+            confirmText: 'Submit dispute',
+            input: {
+              label: 'Problem description',
+              help: 'Enter 5–500 characters. Do not include passwords or private coordinates.',
+              placeholder: 'Explain what was not delivered or what went wrong…',
+              minLength: 5,
+              maxLength: 500
+            }
+          });
           if (!reason) return;
           try {
             await api(`/api/orders/${line.id}/dispute`, { method: 'POST', body: { reason } });

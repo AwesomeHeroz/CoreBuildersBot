@@ -122,30 +122,80 @@ footer { padding: 30px; text-align: center; color: var(--muted); border-top: 1px
   .quantity-control, .cart-row > strong { grid-column: 2; }
 }
 
-.minecraft-login-dialog {
-  width: min(92vw, 520px);
-  border: 0;
-  border-radius: 18px;
-  padding: 0;
-  color: var(--text);
-  background: var(--surface);
+
+body.modal-open { overflow: hidden; }
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, .72);
+  backdrop-filter: blur(6px);
 }
-.minecraft-login-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.68);
-}
-.minecraft-login-panel {
+.modal-panel {
+  position: relative;
   display: grid;
   gap: 16px;
+  width: min(100%, 520px);
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
   padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .58);
 }
-.minecraft-login-panel h2,
-.minecraft-login-panel p {
-  margin: 0;
+.modal-panel h2,
+.modal-panel p { margin: 0; }
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 25px;
+  line-height: 1;
 }
+.modal-close:hover,
+.modal-close:focus-visible {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.modal-input-group {
+  display: grid;
+  gap: 8px;
+  font-weight: 650;
+}
+.modal-input-group small { font-weight: 400; }
+.modal-error {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 107, 122, .38);
+  border-radius: 10px;
+  color: #ffd3d8;
+  background: rgba(255, 107, 122, .13);
+}
+.minecraft-login-panel { width: min(100%, 560px); }
+.minecraft-login-challenge { display: grid; gap: 16px; }
 .minecraft-login-code {
   font-size: clamp(2rem, 9vw, 3.25rem);
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: .12em;
   text-align: center;
 }
 .minecraft-login-command {
@@ -155,4 +205,25 @@ footer { padding: 30px; text-align: center; color: var(--muted); border-top: 1px
   padding: 14px;
   background: var(--bg);
   text-align: center;
+  user-select: all;
+}
+.verified-account {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid rgba(64, 201, 138, .34);
+  border-radius: 14px;
+  background: rgba(64, 201, 138, .10);
+}
+.verified-account strong { font-size: 24px; }
+@media (max-width: 620px) {
+  .modal-overlay { align-items: end; padding: 10px; }
+  .modal-panel {
+    width: 100%;
+    max-height: calc(100vh - 20px);
+    padding: 24px 18px 18px;
+    border-radius: 18px 18px 12px 12px;
+  }
+  .modal-actions { flex-direction: column-reverse; }
+  .modal-actions .button { width: 100%; }
 }

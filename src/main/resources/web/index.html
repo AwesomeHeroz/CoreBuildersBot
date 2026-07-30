@@ -6,6 +6,7 @@
   <meta name="description" content="Core Builders player marketplace">
   <title>Core Builders Marketplace</title>
   <link rel="stylesheet" href="/styles.css">
+  <script src="/jquery-3.7.1.min.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -136,6 +137,49 @@
       <div id="sales-list" class="stack hidden"></div>
     </section>
   </main>
+
+
+  <div id="minecraft-login-modal" class="modal-overlay hidden" aria-hidden="true">
+    <section class="modal-panel minecraft-login-panel" role="dialog" aria-modal="true"
+             aria-labelledby="minecraft-login-title" aria-describedby="minecraft-login-status">
+      <button id="minecraft-login-close" class="modal-close" type="button" aria-label="Close login dialog">×</button>
+      <h2 id="minecraft-login-title">Verify login in Minecraft</h2>
+      <p id="minecraft-login-status" class="muted" aria-live="polite">Creating a one-time login code…</p>
+      <div id="minecraft-login-challenge" class="minecraft-login-challenge">
+        <div id="minecraft-login-code" class="minecraft-login-code">--------</div>
+        <code id="minecraft-login-command" class="minecraft-login-command"></code>
+        <p>Join the Minecraft server with the account you want to use, then run this command in chat.</p>
+      </div>
+      <div id="minecraft-login-account" class="verified-account hidden">
+        <span class="muted">Verified Minecraft account</span>
+        <strong id="minecraft-login-name"></strong>
+        <p>Continue only if this is the account you intended to use.</p>
+      </div>
+      <div class="modal-actions">
+        <button id="minecraft-login-cancel" class="button ghost" type="button">Cancel</button>
+        <button id="minecraft-login-confirm" class="button primary hidden" type="button">Continue</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="action-modal" class="modal-overlay hidden" aria-hidden="true">
+    <section class="modal-panel" role="dialog" aria-modal="true"
+             aria-labelledby="action-modal-title" aria-describedby="action-modal-message">
+      <button id="action-modal-close" class="modal-close" type="button" aria-label="Close dialog">×</button>
+      <h2 id="action-modal-title"></h2>
+      <p id="action-modal-message"></p>
+      <label id="action-modal-input-group" class="modal-input-group hidden" for="action-modal-input">
+        <span id="action-modal-input-label"></span>
+        <textarea id="action-modal-input" rows="5"></textarea>
+        <small id="action-modal-input-help" class="muted"></small>
+      </label>
+      <p id="action-modal-error" class="modal-error hidden" role="alert"></p>
+      <div class="modal-actions">
+        <button id="action-modal-cancel" class="button ghost" type="button">Cancel</button>
+        <button id="action-modal-confirm" class="button primary" type="button">Continue</button>
+      </div>
+    </section>
+  </div>
 
   <footer>Core Builders marketplace · Purchases use contribution points</footer>
 </body>
