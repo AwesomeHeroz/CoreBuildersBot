@@ -3,8 +3,12 @@ package com.corebuilders.bot.web;
 import com.corebuilders.bot.application.RequestRateLimiter;
 import com.corebuilders.bot.config.WebsiteConfig;
 import com.corebuilders.bot.model.MarketplaceModels.*;
+import com.corebuilders.bot.service.MarketplaceCartOperations;
+import com.corebuilders.bot.service.MarketplaceCatalogOperations;
 import com.corebuilders.bot.service.MarketplaceException;
 import com.corebuilders.bot.service.MarketplaceOperations;
+import com.corebuilders.bot.service.MarketplaceOrderOperations;
+import com.corebuilders.bot.service.MarketplaceShopManagementOperations;
 import com.corebuilders.bot.service.WebLoginChallengeRepository;
 import com.corebuilders.bot.service.WebLoginService;
 import com.corebuilders.bot.web.auth.*;
@@ -47,7 +51,10 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     private final DiscordOAuth oauth;
     private final WebsiteIdentity identity;
     private final WebLoginService webLogin;
-    private final MarketplaceOperations marketplace;
+    private final MarketplaceCatalogOperations catalog;
+    private final MarketplaceShopManagementOperations shopManagement;
+    private final MarketplaceCartOperations carts;
+    private final MarketplaceOrderOperations orders;
     private final Logger logger;
     private final WebSessionStore sessions;
     private final OAuthStateStore states;
@@ -79,12 +86,31 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             MarketplaceOperations marketplace,
             Logger logger
     ) throws IOException {
+        this(config, mapper, oauth, identity, webLogin,
+                marketplace, marketplace, marketplace, marketplace, logger);
+    }
+
+    public MarketplaceHttpServer(
+            WebsiteConfig config,
+            ObjectMapper mapper,
+            DiscordOAuth oauth,
+            WebsiteIdentity identity,
+            WebLoginService webLogin,
+            MarketplaceCatalogOperations catalog,
+            MarketplaceShopManagementOperations shopManagement,
+            MarketplaceCartOperations carts,
+            MarketplaceOrderOperations orders,
+            Logger logger
+    ) throws IOException {
         this.config = config;
         this.mapper = mapper;
         this.oauth = oauth;
         this.identity = identity;
         this.webLogin = webLogin;
-        this.marketplace = marketplace;
+        this.catalog = java.util.Objects.requireNonNull(catalog, "catalog");
+        this.shopManagement = java.util.Objects.requireNonNull(shopManagement, "shopManagement");
+        this.carts = java.util.Objects.requireNonNull(carts, "carts");
+        this.orders = java.util.Objects.requireNonNull(orders, "orders");
         this.logger = logger;
         this.sessions = new WebSessionStore(config.sessionLifetime(), config.idleSessionLifetime());
         this.states = new OAuthStateStore();
@@ -223,7 +249,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         }
         if (path.equals("/api/categories") && method.equals("GET")) {
             requireRateLimit(exchange, publicReadLimiter, "public-read");
-            sendJson(exchange, 200, Map.of("categories", marketplace.categories()));
+            sendJson(exchange, 200, Map.of("categories", catalog.categories()));
             return;
         }
         if (path.equals("/api/items") && method.equals("GET")) {
@@ -234,12 +260,12 @@ public final class MarketplaceHttpServer implements AutoCloseable {
                     SortDirection.parse(query.get("direction")), integer(query.get("page"), 1),
                     integer(query.get("pageSize"), 20));
             UUID viewer = optionalSession(exchange).map(value -> value.principal().memberId()).orElse(null);
-            sendJson(exchange, 200, publicPage(marketplace.searchItems(search), viewer));
+            sendJson(exchange, 200, publicPage(catalog.searchItems(search), viewer));
             return;
         }
         if (parts.size() == 3 && parts.get(0).equals("api") && parts.get(1).equals("items") && method.equals("GET")) {
             requireRateLimit(exchange, publicReadLimiter, "public-read");
-            MarketplaceItem item = marketplace.findItem(uuid(parts.get(2)))
+            MarketplaceItem item = catalog.findItem(uuid(parts.get(2)))
                     .orElseThrow(() -> MarketplaceException.notFound("Marketplace item not found."));
             UUID viewer = optionalSession(exchange).map(value -> value.principal().memberId()).orElse(null);
             sendJson(exchange, 200, publicItem(item, viewer));
@@ -248,11 +274,11 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         if (parts.size() == 3 && parts.get(0).equals("api") && parts.get(1).equals("shops") && method.equals("GET")) {
             requireRateLimit(exchange, publicReadLimiter, "public-read");
             UUID shopId = uuid(parts.get(2));
-            PlayerShop shop = marketplace.findShop(shopId)
+            PlayerShop shop = catalog.findShop(shopId)
                     .orElseThrow(() -> MarketplaceException.notFound("Shop not found."));
             UUID viewer = optionalSession(exchange).map(value -> value.principal().memberId()).orElse(null);
             sendJson(exchange, 200, new PublicShopPayload(publicShop(shop),
-                    marketplace.shopItems(shopId).stream().map(item -> publicItem(item, viewer)).toList()));
+                    catalog.shopItems(shopId).stream().map(item -> publicItem(item, viewer)).toList()));
             return;
         }
         if (path.equals("/api/auth/login") || path.equals("/api/auth/callback")) {
@@ -275,25 +301,25 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         }
 
         if (path.equals("/api/me/shop") && method.equals("GET")) {
-            Optional<PlayerShop> shop = marketplace.findShopByOwner(principal.memberId());
-            List<MarketplaceItem> items = shop.isPresent() ? marketplace.ownerItems(principal.memberId()) : List.of();
+            Optional<PlayerShop> shop = shopManagement.findShopByOwner(principal.memberId());
+            List<MarketplaceItem> items = shop.isPresent() ? shopManagement.ownerItems(principal.memberId()) : List.of();
             sendJson(exchange, 200, new ShopPayload(shop.orElse(null), items));
             return;
         }
         if (path.equals("/api/me/shop") && method.equals("POST")) {
             requireCsrf(exchange, session);
-            PlayerShop created = marketplace.createShop(principal.memberId(), readJson(exchange, ShopInput.class));
+            PlayerShop created = shopManagement.createShop(principal.memberId(), readJson(exchange, ShopInput.class));
             sendJson(exchange, 201, created);
             return;
         }
         if (path.equals("/api/me/shop") && method.equals("PUT")) {
             requireCsrf(exchange, session);
-            sendJson(exchange, 200, marketplace.updateShop(principal.memberId(), readJson(exchange, ShopInput.class)));
+            sendJson(exchange, 200, shopManagement.updateShop(principal.memberId(), readJson(exchange, ShopInput.class)));
             return;
         }
         if (path.equals("/api/me/shop/items") && method.equals("POST")) {
             requireCsrf(exchange, session);
-            MarketplaceItem created = marketplace.createItem(principal.memberId(), readJson(exchange, ItemInput.class));
+            MarketplaceItem created = shopManagement.createItem(principal.memberId(), readJson(exchange, ItemInput.class));
             sendJson(exchange, 201, created);
             return;
         }
@@ -302,18 +328,18 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             UUID itemId = uuid(parts.get(4));
             requireCsrf(exchange, session);
             if (method.equals("PUT")) {
-                sendJson(exchange, 200, marketplace.updateItem(
+                sendJson(exchange, 200, shopManagement.updateItem(
                         principal.memberId(), itemId, readJson(exchange, ItemInput.class)));
                 return;
             }
             if (method.equals("DELETE")) {
-                marketplace.deactivateItem(principal.memberId(), itemId);
+                shopManagement.deactivateItem(principal.memberId(), itemId);
                 sendEmpty(exchange, 204);
                 return;
             }
         }
         if (path.equals("/api/cart") && method.equals("GET")) {
-            sendJson(exchange, 200, marketplace.cart(principal.memberId()));
+            sendJson(exchange, 200, carts.cart(principal.memberId()));
             return;
         }
         if (parts.size() == 4 && parts.get(0).equals("api") && parts.get(1).equals("cart")
@@ -322,34 +348,34 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             requireCsrf(exchange, session);
             if (method.equals("PUT")) {
                 QuantityRequest request = readJson(exchange, QuantityRequest.class);
-                sendJson(exchange, 200, marketplace.setCartQuantity(principal.memberId(), itemId, request.quantity()));
+                sendJson(exchange, 200, carts.setCartQuantity(principal.memberId(), itemId, request.quantity()));
                 return;
             }
             if (method.equals("DELETE")) {
-                sendJson(exchange, 200, marketplace.removeCartItem(principal.memberId(), itemId));
+                sendJson(exchange, 200, carts.removeCartItem(principal.memberId(), itemId));
                 return;
             }
         }
         if (path.equals("/api/cart/checkout") && method.equals("POST")) {
             requireCsrf(exchange, session);
             CheckoutRequest request = readJson(exchange, CheckoutRequest.class);
-            sendJson(exchange, 201, marketplace.checkout(principal.memberId(), principal.discordUserId(), request));
+            sendJson(exchange, 201, carts.checkout(principal.memberId(), principal.discordUserId(), request));
             return;
         }
         if (path.equals("/api/orders") && method.equals("GET")) {
             int limit = integer(query(exchange.getRequestURI()).get("limit"), 25);
-            sendJson(exchange, 200, Map.of("orders", marketplace.purchases(principal.memberId(), limit)));
+            sendJson(exchange, 200, Map.of("orders", orders.purchases(principal.memberId(), limit)));
             return;
         }
         if (path.equals("/api/sales") && method.equals("GET")) {
             int limit = integer(query(exchange.getRequestURI()).get("limit"), 50);
-            sendJson(exchange, 200, Map.of("sales", marketplace.sales(principal.memberId(), limit)));
+            sendJson(exchange, 200, Map.of("sales", orders.sales(principal.memberId(), limit)));
             return;
         }
         if (parts.size() == 4 && parts.get(0).equals("api") && parts.get(1).equals("sales")
                 && parts.get(3).equals("delivered") && method.equals("POST")) {
             requireCsrf(exchange, session);
-            sendJson(exchange, 200, marketplace.markDelivered(principal.memberId(), uuid(parts.get(2))));
+            sendJson(exchange, 200, orders.markDelivered(principal.memberId(), uuid(parts.get(2))));
             return;
         }
         if (parts.size() == 4 && parts.get(0).equals("api") && parts.get(1).equals("orders")
@@ -357,11 +383,11 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             requireCsrf(exchange, session);
             UUID lineId = uuid(parts.get(2));
             switch (parts.get(3)) {
-                case "confirm" -> sendJson(exchange, 200, marketplace.confirmDelivery(principal.memberId(), lineId));
-                case "cancel" -> sendJson(exchange, 200, marketplace.cancelLine(principal.memberId(), lineId));
+                case "confirm" -> sendJson(exchange, 200, orders.confirmDelivery(principal.memberId(), lineId));
+                case "cancel" -> sendJson(exchange, 200, orders.cancelLine(principal.memberId(), lineId));
                 case "dispute" -> {
                     DisputeRequest request = readJson(exchange, DisputeRequest.class);
-                    sendJson(exchange, 200, marketplace.disputeLine(principal.memberId(), lineId, request.reason()));
+                    sendJson(exchange, 200, orders.disputeLine(principal.memberId(), lineId, request.reason()));
                 }
                 default -> throw new HttpStatusException(404, "not_found", "API endpoint not found.");
             }

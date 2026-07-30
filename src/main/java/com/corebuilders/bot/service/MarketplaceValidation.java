@@ -14,7 +14,7 @@ public final class MarketplaceValidation {
                 required(input.description(), "Shop description", 3, 1000));
     }
 
-    public static ItemInput item(ItemInput input, MarketplaceImagePolicy imagePolicy) {
+    public static ItemInput item(ItemInput input, MarketplaceListingImagePolicy imagePolicy) {
         if (input == null) throw validation("Item details are required.");
         if (input.stock() < 0 || input.stock() > 1_000_000) {
             throw validation("Stock must be between 0 and 1,000,000.");

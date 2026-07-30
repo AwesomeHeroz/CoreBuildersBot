@@ -5,8 +5,6 @@ import com.corebuilders.bot.model.Domain.SourceType;
 import com.corebuilders.bot.model.MarketplaceModels.*;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
-import com.querydsl.core.types.Expression;
-import com.querydsl.core.types.OrderSpecifier;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,6 +23,10 @@ import static com.corebuilders.bot.db.DbValues.now;
 import static com.corebuilders.bot.db.DbValues.uuid;
 import static com.corebuilders.bot.db.Schema.*;
 import static com.corebuilders.bot.service.MarketplaceException.*;
+import static com.corebuilders.bot.service.MarketplaceArithmetic.*;
+import static com.corebuilders.bot.service.MarketplaceQueryPolicy.*;
+import static com.corebuilders.bot.service.MarketplaceRows.*;
+import static com.corebuilders.bot.service.MarketplaceStates.*;
 import static com.corebuilders.bot.service.MarketplaceValidation.*;
 
 /**
@@ -35,22 +37,14 @@ import static com.corebuilders.bot.service.MarketplaceValidation.*;
  * buyer points in escrow, decrements stock, and clears the cart in one database transaction.
  */
 public final class MarketplaceService implements MarketplaceOperations, MarketplaceDisputeOperations {
-    private static final String ORDER_HELD = "HELD";
-    private static final String ORDER_COMPLETED = "COMPLETED";
-    private static final String ORDER_DISPUTED = "DISPUTED";
-    private static final String LINE_PENDING = "PENDING_DELIVERY";
-    private static final String LINE_DELIVERED = "DELIVERED";
-    private static final String LINE_SETTLED = "SETTLED";
-    private static final String LINE_CANCELLED = "CANCELLED";
-    private static final String LINE_REFUNDED = "REFUNDED";
-    private static final String LINE_DISPUTED = "DISPUTED";
     private static final int MAX_CART_LINES = 100;
 
     private final QueryDslDatabase database;
     private final LedgerService ledger;
     private final AuditService audit;
-    private final MarketplaceAuthorizer authorizer;
-    private final MarketplaceImagePolicy imagePolicy;
+    private final MarketplaceAccessPolicy authorizer;
+    private final MarketplaceListingImagePolicy imagePolicy;
+    private final MarketplaceActorDirectory actorDirectory;
 
     public MarketplaceService(QueryDslDatabase database, LedgerService ledger, AuditService audit) {
         this(database, ledger, audit, Set.of());
@@ -58,11 +52,29 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
 
     public MarketplaceService(QueryDslDatabase database, LedgerService ledger, AuditService audit,
                               Set<String> allowedImageHosts) {
+        this(database, ledger, audit,
+                new MarketplaceAuthorizer(database),
+                new MarketplaceImagePolicy(allowedImageHosts),
+                new QueryDslMarketplaceActorDirectory(database));
+    }
+
+    /**
+     * Injection-friendly constructor for tests and alternative adapters.
+     */
+    public MarketplaceService(
+            QueryDslDatabase database,
+            LedgerService ledger,
+            AuditService audit,
+            MarketplaceAccessPolicy authorizer,
+            MarketplaceListingImagePolicy imagePolicy,
+            MarketplaceActorDirectory actorDirectory
+    ) {
         this.database = Objects.requireNonNull(database, "database");
         this.ledger = Objects.requireNonNull(ledger, "ledger");
         this.audit = Objects.requireNonNull(audit, "audit");
-        this.authorizer = new MarketplaceAuthorizer(database);
-        this.imagePolicy = new MarketplaceImagePolicy(allowedImageHosts);
+        this.authorizer = Objects.requireNonNull(authorizer, "authorizer");
+        this.imagePolicy = Objects.requireNonNull(imagePolicy, "imagePolicy");
+        this.actorDirectory = Objects.requireNonNull(actorDirectory, "actorDirectory");
     }
 
     @Override
@@ -71,7 +83,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                 ? new ItemSearch(null, null, ItemSort.NEWEST, SortDirection.DESC, 1, 20)
                 : request;
         BooleanBuilder filters = publicItemFilters(search.text(), search.category());
-        long total = database.query(q -> value(q.select(MARKETPLACE_ITEMS.id.count())
+        long total = database.query(q -> number(q.select(MARKETPLACE_ITEMS.id.count())
                 .from(MARKETPLACE_ITEMS)
                 .join(MARKETPLACE_SHOPS).on(MARKETPLACE_SHOPS.id.eq(MARKETPLACE_ITEMS.shopId))
                 .join(MEMBERS).on(MEMBERS.id.eq(MARKETPLACE_SHOPS.ownerMemberId))
@@ -88,7 +100,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                 .limit(search.pageSize())
                 .fetch()
                 .stream()
-                .map(MarketplaceService::mapItem)
+                .map(MarketplaceRows::mapItem)
                 .toList());
         return new ItemPage(items, search.page(), search.pageSize(), total);
     }
@@ -102,7 +114,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                         .join(MEMBERS).on(MEMBERS.id.eq(MARKETPLACE_SHOPS.ownerMemberId))
                         .where(MARKETPLACE_ITEMS.id.eq(uuid(itemId)), publicItemFilters(null, null))
                         .fetchOne())
-                .map(MarketplaceService::mapItem));
+                .map(MarketplaceRows::mapItem));
     }
 
     @Override
@@ -129,7 +141,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                                 MEMBERS.reputation.ne("UNVERIFIED"), MEMBERS.primaryRole.isNotNull(),
                                 MEMBERS.primaryRole.ne(""))
                         .fetchOne())
-                .map(MarketplaceService::mapShop));
+                .map(MarketplaceRows::mapShop));
     }
 
     @Override
@@ -143,7 +155,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                 .orderBy(MARKETPLACE_ITEMS.name.asc())
                 .fetch()
                 .stream()
-                .map(MarketplaceService::mapItem)
+                .map(MarketplaceRows::mapItem)
                 .toList());
     }
 
@@ -156,7 +168,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                         .join(MEMBERS).on(MEMBERS.id.eq(MARKETPLACE_SHOPS.ownerMemberId))
                         .where(MARKETPLACE_SHOPS.ownerMemberId.eq(uuid(ownerMemberId)))
                         .fetchOne())
-                .map(MarketplaceService::mapShop));
+                .map(MarketplaceRows::mapShop));
     }
 
     @Override
@@ -185,7 +197,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                 if (database.isDuplicateKey(error)) throw conflict("Each player can create only one shop.");
                 throw error;
             }
-            String actor = discordForMember(ownerMemberId);
+            String actor = actorDirectory.discordIdFor(ownerMemberId);
             audit.log(actor, "MARKETPLACE_SHOP_CREATED", actor, "MARKETPLACE_SHOP", shopId.toString(), input.name());
             return requireShop(shopId);
         });
@@ -223,7 +235,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                 .orderBy(MARKETPLACE_ITEMS.updatedAt.desc(), MARKETPLACE_ITEMS.name.asc())
                 .fetch()
                 .stream()
-                .map(MarketplaceService::mapItem)
+                .map(MarketplaceRows::mapItem)
                 .toList());
     }
 
@@ -342,7 +354,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                             MARKETPLACE_CART_ITEMS.itemId.eq(uuid(itemId)))
                     .fetchOne());
             if (existing == null) {
-                long cartLines = value(database.query(q -> q.select(MARKETPLACE_CART_ITEMS.itemId.count())
+                long cartLines = number(database.query(q -> q.select(MARKETPLACE_CART_ITEMS.itemId.count())
                         .from(MARKETPLACE_CART_ITEMS)
                         .where(MARKETPLACE_CART_ITEMS.cartId.eq(uuid(cartId)))
                         .fetchOne()));
@@ -535,7 +547,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                 .limit(limit(rawLimit))
                 .fetch()
                 .stream()
-                .map(MarketplaceService::mapOrderLine)
+                .map(MarketplaceRows::mapOrderLine)
                 .toList());
     }
 
@@ -561,11 +573,11 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                     .execute());
             if (changed != 1) throw conflict("This sale changed while it was being updated.");
             updateOrderState(line.orderId());
-            String actor = discordForMember(sellerMemberId);
+            String actor = actorDirectory.discordIdFor(sellerMemberId);
             String detail = line.fundsReleased()
                     ? line.itemName() + "; legacy order was already paid"
                     : line.itemName() + "; awaiting buyer confirmation";
-            audit.log(actor, "MARKETPLACE_SALE_DELIVERED", discordForMember(line.buyerMemberId()),
+            audit.log(actor, "MARKETPLACE_SALE_DELIVERED", actorDirectory.discordIdFor(line.buyerMemberId()),
                     "MARKETPLACE_ORDER_ITEM", lineId.toString(), detail);
             return requireOrderLine(lineId);
         });
@@ -586,7 +598,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
             // cross-purchase deadlocks when two members buy from each other.
             lockMembers(buyerMemberId, line.sellerMemberId());
             authorizer.requireAuthorizedForUpdate(buyerMemberId);
-            String buyerDiscord = discordForMember(buyerMemberId);
+            String buyerDiscord = actorDirectory.discordIdFor(buyerMemberId);
             ledger.addCredits(line.sellerMemberId(), line.lineTotal(), SourceType.MARKETPLACE_SALE,
                     line.orderId(), "Marketplace escrow released", buyerDiscord);
             long changed = database.query(q -> q.update(MARKETPLACE_ORDER_ITEMS)
@@ -599,7 +611,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                     .execute());
             if (changed != 1) throw conflict("This purchase changed while it was being confirmed.");
             updateOrderState(line.orderId());
-            audit.log(buyerDiscord, "MARKETPLACE_DELIVERY_CONFIRMED", discordForMember(line.sellerMemberId()),
+            audit.log(buyerDiscord, "MARKETPLACE_DELIVERY_CONFIRMED", actorDirectory.discordIdFor(line.sellerMemberId()),
                     "MARKETPLACE_ORDER_ITEM", lineId.toString(), line.itemName());
             return requireOrderLine(lineId);
         });
@@ -623,7 +635,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                     .where(MARKETPLACE_ITEMS.id.eq(uuid(line.itemId())))
                     .forUpdate().fetchOne());
             if (item == null) throw notFound("Marketplace item no longer exists.");
-            String buyerDiscord = discordForMember(buyerMemberId);
+            String buyerDiscord = actorDirectory.discordIdFor(buyerMemberId);
             ledger.addCredits(buyerMemberId, line.lineTotal(), SourceType.MARKETPLACE_REFUND,
                     line.orderId(), "Cancelled marketplace line", buyerDiscord);
             database.query(q -> q.update(MARKETPLACE_ITEMS)
@@ -640,7 +652,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                     .execute());
             if (changed != 1) throw conflict("This purchase changed while it was being cancelled.");
             updateOrderState(line.orderId());
-            audit.log(buyerDiscord, "MARKETPLACE_LINE_CANCELLED", discordForMember(line.sellerMemberId()),
+            audit.log(buyerDiscord, "MARKETPLACE_LINE_CANCELLED", actorDirectory.discordIdFor(line.sellerMemberId()),
                     "MARKETPLACE_ORDER_ITEM", lineId.toString(), line.itemName());
             return requireOrderLine(lineId);
         });
@@ -672,8 +684,8 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                     .set(MARKETPLACE_ORDERS.status, ORDER_DISPUTED)
                     .where(MARKETPLACE_ORDERS.id.eq(uuid(line.orderId())))
                     .execute());
-            String buyerDiscord = discordForMember(buyerMemberId);
-            audit.log(buyerDiscord, "MARKETPLACE_LINE_DISPUTED", discordForMember(line.sellerMemberId()),
+            String buyerDiscord = actorDirectory.discordIdFor(buyerMemberId);
+            audit.log(buyerDiscord, "MARKETPLACE_LINE_DISPUTED", actorDirectory.discordIdFor(line.sellerMemberId()),
                     "MARKETPLACE_ORDER_ITEM", lineId.toString(), reason);
             return requireOrderLine(lineId);
         });
@@ -691,7 +703,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                 .limit(limit(rawLimit))
                 .fetch()
                 .stream()
-                .map(MarketplaceService::mapOrderLine)
+                .map(MarketplaceRows::mapOrderLine)
                 .toList());
     }
 
@@ -746,8 +758,8 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
             updateOrderState(line.orderId());
             audit.log(actorDiscordId, action,
                     resolution == DisputeResolution.RELEASE_SELLER
-                            ? discordForMember(line.sellerMemberId())
-                            : discordForMember(line.buyerMemberId()),
+                            ? actorDirectory.discordIdFor(line.sellerMemberId())
+                            : actorDirectory.discordIdFor(line.buyerMemberId()),
                     "MARKETPLACE_ORDER_ITEM", lineId.toString(), reason);
             return requireOrderLine(lineId);
         });
@@ -782,19 +794,15 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                 .from(MARKETPLACE_ORDER_ITEMS)
                 .where(MARKETPLACE_ORDER_ITEMS.orderId.eq(uuid(orderId)))
                 .forUpdate().fetch());
-        boolean disputed = lines.stream()
-                .anyMatch(line -> LINE_DISPUTED.equals(line.get(MARKETPLACE_ORDER_ITEMS.status)));
-        boolean complete = !lines.isEmpty() && lines.stream().allMatch(line -> {
-            String status = line.get(MARKETPLACE_ORDER_ITEMS.status);
-            boolean alreadyPaid = Boolean.TRUE.equals(line.get(MARKETPLACE_ORDER_ITEMS.fundsReleased));
-            return LINE_SETTLED.equals(status)
-                    || LINE_CANCELLED.equals(status)
-                    || LINE_REFUNDED.equals(status)
-                    || (LINE_DELIVERED.equals(status) && alreadyPaid);
-        });
+        List<MarketplaceStates.LineState> states = lines.stream()
+                .map(line -> new MarketplaceStates.LineState(
+                        line.get(MARKETPLACE_ORDER_ITEMS.status),
+                        Boolean.TRUE.equals(line.get(MARKETPLACE_ORDER_ITEMS.fundsReleased))))
+                .toList();
+        boolean complete = MarketplaceStates.isComplete(states);
         database.query(q -> {
             var update = q.update(MARKETPLACE_ORDERS)
-                    .set(MARKETPLACE_ORDERS.status, disputed ? ORDER_DISPUTED : complete ? ORDER_COMPLETED : ORDER_HELD);
+                    .set(MARKETPLACE_ORDERS.status, MarketplaceStates.orderStatus(states));
             if (complete) update.set(MARKETPLACE_ORDERS.completedAt, now());
             else update.setNull(MARKETPLACE_ORDERS.completedAt);
             return update.where(MARKETPLACE_ORDERS.id.eq(uuid(orderId))).execute();
@@ -889,7 +897,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                         .join(MEMBERS).on(MEMBERS.id.eq(MARKETPLACE_SHOPS.ownerMemberId))
                         .where(MARKETPLACE_SHOPS.id.eq(uuid(shopId)))
                         .fetchOne())
-                .map(MarketplaceService::mapShop)
+                .map(MarketplaceRows::mapShop)
                 .orElseThrow(() -> notFound("Shop not found.")));
     }
 
@@ -904,7 +912,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                         .join(MEMBERS).on(MEMBERS.id.eq(MARKETPLACE_SHOPS.ownerMemberId))
                         .where(MARKETPLACE_ITEMS.id.eq(uuid(itemId)))
                         .fetchOne())
-                .map(MarketplaceService::mapItem));
+                .map(MarketplaceRows::mapItem));
     }
 
     private MarketplaceItem lockOwnedItem(UUID ownerMemberId, UUID itemId) {
@@ -956,12 +964,12 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                 .orderBy(MARKETPLACE_ORDER_ITEMS.createdAt.asc())
                 .fetch()
                 .stream()
-                .map(MarketplaceService::mapOrderLine)
+                .map(MarketplaceRows::mapOrderLine)
                 .toList());
         return new MarketplaceOrder(
                 UUID.fromString(order.get(MARKETPLACE_ORDERS.id)),
                 UUID.fromString(order.get(MARKETPLACE_ORDERS.buyerMemberId)),
-                value(order.get(MARKETPLACE_ORDERS.totalPrice)),
+                number(order.get(MARKETPLACE_ORDERS.totalPrice)),
                 order.get(MARKETPLACE_ORDERS.status),
                 lines,
                 instant(order.get(MARKETPLACE_ORDERS.createdAt)),
@@ -976,175 +984,8 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                         .join(MEMBERS).on(MEMBERS.id.eq(MARKETPLACE_ORDERS.buyerMemberId))
                         .where(MARKETPLACE_ORDER_ITEMS.id.eq(uuid(lineId)))
                         .fetchOne())
-                .map(MarketplaceService::mapOrderLine)
+                .map(MarketplaceRows::mapOrderLine)
                 .orElseThrow(() -> notFound("Sale line not found.")));
-    }
-
-    private String discordForMember(UUID memberId) {
-        Tuple member = database.query(q -> q.select(MEMBERS.id, MEMBERS.discordUserId)
-                .from(MEMBERS)
-                .where(MEMBERS.id.eq(uuid(memberId)))
-                .fetchOne());
-        if (member == null) throw notFound("Member profile not found.");
-        String discordId = member.get(MEMBERS.discordUserId);
-        return discordId == null || discordId.isBlank() ? "SYSTEM" : discordId;
-    }
-
-    private static BooleanBuilder publicItemFilters(String text, String category) {
-        BooleanBuilder filters = new BooleanBuilder()
-                .and(MARKETPLACE_ITEMS.active.isTrue())
-                .and(MARKETPLACE_SHOPS.active.isTrue())
-                .and(MEMBERS.active.isTrue())
-                .and(MEMBERS.minecraftLoginProvisional.isFalse())
-                .and(MEMBERS.reputation.isNotNull())
-                .and(MEMBERS.reputation.ne(""))
-                .and(MEMBERS.reputation.ne("UNVERIFIED"))
-                .and(MEMBERS.primaryRole.isNotNull())
-                .and(MEMBERS.primaryRole.ne(""));
-        if (text != null && !text.isBlank()) {
-            String query = text.trim();
-            filters.and(MARKETPLACE_ITEMS.name.containsIgnoreCase(query)
-                    .or(MARKETPLACE_ITEMS.description.containsIgnoreCase(query)));
-        }
-        if (category != null && !category.isBlank()) {
-            filters.and(MARKETPLACE_ITEMS.category.equalsIgnoreCase(category.trim()));
-        }
-        return filters;
-    }
-
-    private static OrderSpecifier<?> orderFor(ItemSearch search) {
-        boolean ascending = search.direction() == SortDirection.ASC;
-        return switch (search.sort()) {
-            case PRICE -> ascending ? MARKETPLACE_ITEMS.price.asc() : MARKETPLACE_ITEMS.price.desc();
-            case NAME -> ascending ? MARKETPLACE_ITEMS.name.asc() : MARKETPLACE_ITEMS.name.desc();
-            case STOCK -> ascending ? MARKETPLACE_ITEMS.stock.asc() : MARKETPLACE_ITEMS.stock.desc();
-            case NEWEST -> ascending ? MARKETPLACE_ITEMS.createdAt.asc() : MARKETPLACE_ITEMS.createdAt.desc();
-        };
-    }
-
-    private static Expression<?>[] shopColumns() {
-        return new Expression<?>[]{MARKETPLACE_SHOPS.id, MARKETPLACE_SHOPS.ownerMemberId,
-                MEMBERS.discordUserId, MEMBERS.username, MARKETPLACE_SHOPS.name,
-                MARKETPLACE_SHOPS.description, MARKETPLACE_SHOPS.active,
-                MARKETPLACE_SHOPS.createdAt, MARKETPLACE_SHOPS.updatedAt};
-    }
-
-    private static PlayerShop mapShop(Tuple row) {
-        return new PlayerShop(
-                UUID.fromString(row.get(MARKETPLACE_SHOPS.id)),
-                UUID.fromString(row.get(MARKETPLACE_SHOPS.ownerMemberId)),
-                row.get(MEMBERS.discordUserId),
-                row.get(MEMBERS.username),
-                row.get(MARKETPLACE_SHOPS.name),
-                row.get(MARKETPLACE_SHOPS.description),
-                Boolean.TRUE.equals(row.get(MARKETPLACE_SHOPS.active)),
-                instant(row.get(MARKETPLACE_SHOPS.createdAt)),
-                instant(row.get(MARKETPLACE_SHOPS.updatedAt))
-        );
-    }
-
-    private static Expression<?>[] itemColumns() {
-        return new Expression<?>[]{MARKETPLACE_ITEMS.id, MARKETPLACE_ITEMS.shopId,
-                MARKETPLACE_SHOPS.name, MARKETPLACE_SHOPS.ownerMemberId,
-                MEMBERS.discordUserId, MEMBERS.username, MARKETPLACE_ITEMS.name,
-                MARKETPLACE_ITEMS.description, MARKETPLACE_ITEMS.imageUrl,
-                MARKETPLACE_ITEMS.stock, MARKETPLACE_ITEMS.price, MARKETPLACE_ITEMS.category,
-                MARKETPLACE_ITEMS.active, MARKETPLACE_ITEMS.version,
-                MARKETPLACE_ITEMS.createdAt, MARKETPLACE_ITEMS.updatedAt};
-    }
-
-    private static Expression<?>[] itemColumnsWithQuantity() {
-        Expression<?>[] base = itemColumns();
-        Expression<?>[] extended = new Expression<?>[base.length + 1];
-        System.arraycopy(base, 0, extended, 0, base.length);
-        extended[base.length] = MARKETPLACE_CART_ITEMS.quantity;
-        return extended;
-    }
-
-    private static MarketplaceItem mapItem(Tuple row) {
-        Integer stock = row.get(MARKETPLACE_ITEMS.stock);
-        return new MarketplaceItem(
-                UUID.fromString(row.get(MARKETPLACE_ITEMS.id)),
-                UUID.fromString(row.get(MARKETPLACE_ITEMS.shopId)),
-                row.get(MARKETPLACE_SHOPS.name),
-                UUID.fromString(row.get(MARKETPLACE_SHOPS.ownerMemberId)),
-                row.get(MEMBERS.discordUserId),
-                row.get(MEMBERS.username),
-                row.get(MARKETPLACE_ITEMS.name),
-                row.get(MARKETPLACE_ITEMS.description),
-                row.get(MARKETPLACE_ITEMS.imageUrl),
-                stock == null ? 0 : stock,
-                value(row.get(MARKETPLACE_ITEMS.price)),
-                row.get(MARKETPLACE_ITEMS.category),
-                Boolean.TRUE.equals(row.get(MARKETPLACE_ITEMS.active)),
-                value(row.get(MARKETPLACE_ITEMS.version)),
-                instant(row.get(MARKETPLACE_ITEMS.createdAt)),
-                instant(row.get(MARKETPLACE_ITEMS.updatedAt))
-        );
-    }
-
-    private static Expression<?>[] orderLineColumns() {
-        return new Expression<?>[]{MARKETPLACE_ORDER_ITEMS.id, MARKETPLACE_ORDER_ITEMS.orderId,
-                MARKETPLACE_ORDER_ITEMS.itemId, MARKETPLACE_ORDER_ITEMS.shopId,
-                MARKETPLACE_ORDER_ITEMS.sellerMemberId, MARKETPLACE_ORDERS.buyerMemberId,
-                MEMBERS.username, MARKETPLACE_ORDER_ITEMS.shopName, MARKETPLACE_ORDER_ITEMS.itemName,
-                MARKETPLACE_ORDER_ITEMS.imageUrl, MARKETPLACE_ORDER_ITEMS.category,
-                MARKETPLACE_ORDER_ITEMS.quantity, MARKETPLACE_ORDER_ITEMS.unitPrice,
-                MARKETPLACE_ORDER_ITEMS.lineTotal, MARKETPLACE_ORDER_ITEMS.status,
-                MARKETPLACE_ORDER_ITEMS.fundsReleased, MARKETPLACE_ORDER_ITEMS.createdAt,
-                MARKETPLACE_ORDER_ITEMS.deliveredAt, MARKETPLACE_ORDER_ITEMS.buyerConfirmedAt,
-                MARKETPLACE_ORDER_ITEMS.disputedAt, MARKETPLACE_ORDER_ITEMS.disputeReason,
-                MARKETPLACE_ORDER_ITEMS.resolvedAt, MARKETPLACE_ORDER_ITEMS.resolution,
-                MARKETPLACE_ORDER_ITEMS.resolutionNote};
-    }
-
-    private static MarketplaceOrderLine mapOrderLine(Tuple row) {
-        return new MarketplaceOrderLine(
-                UUID.fromString(row.get(MARKETPLACE_ORDER_ITEMS.id)),
-                UUID.fromString(row.get(MARKETPLACE_ORDER_ITEMS.orderId)),
-                UUID.fromString(row.get(MARKETPLACE_ORDER_ITEMS.itemId)),
-                UUID.fromString(row.get(MARKETPLACE_ORDER_ITEMS.shopId)),
-                UUID.fromString(row.get(MARKETPLACE_ORDER_ITEMS.sellerMemberId)),
-                UUID.fromString(row.get(MARKETPLACE_ORDERS.buyerMemberId)),
-                row.get(MEMBERS.username),
-                row.get(MARKETPLACE_ORDER_ITEMS.shopName),
-                row.get(MARKETPLACE_ORDER_ITEMS.itemName),
-                row.get(MARKETPLACE_ORDER_ITEMS.imageUrl),
-                row.get(MARKETPLACE_ORDER_ITEMS.category),
-                row.get(MARKETPLACE_ORDER_ITEMS.quantity) == null ? 0 : row.get(MARKETPLACE_ORDER_ITEMS.quantity),
-                value(row.get(MARKETPLACE_ORDER_ITEMS.unitPrice)),
-                value(row.get(MARKETPLACE_ORDER_ITEMS.lineTotal)),
-                row.get(MARKETPLACE_ORDER_ITEMS.status),
-                Boolean.TRUE.equals(row.get(MARKETPLACE_ORDER_ITEMS.fundsReleased)),
-                instant(row.get(MARKETPLACE_ORDER_ITEMS.createdAt)),
-                instant(row.get(MARKETPLACE_ORDER_ITEMS.deliveredAt)),
-                instant(row.get(MARKETPLACE_ORDER_ITEMS.buyerConfirmedAt)),
-                instant(row.get(MARKETPLACE_ORDER_ITEMS.disputedAt)),
-                row.get(MARKETPLACE_ORDER_ITEMS.disputeReason),
-                instant(row.get(MARKETPLACE_ORDER_ITEMS.resolvedAt)),
-                row.get(MARKETPLACE_ORDER_ITEMS.resolution),
-                row.get(MARKETPLACE_ORDER_ITEMS.resolutionNote)
-        );
-    }
-
-    private static long value(Long value) {
-        return value == null ? 0L : value;
-    }
-
-    private static long multiply(long price, int quantity) {
-        try {
-            return Math.multiplyExact(price, (long) quantity);
-        } catch (ArithmeticException error) {
-            throw validation("Cart total is too large.");
-        }
-    }
-
-    private static long add(long left, long right) {
-        try {
-            return Math.addExact(left, right);
-        } catch (ArithmeticException error) {
-            throw validation("Cart total is too large.");
-        }
     }
 
     private record CartSelection(UUID itemId, int quantity) {}

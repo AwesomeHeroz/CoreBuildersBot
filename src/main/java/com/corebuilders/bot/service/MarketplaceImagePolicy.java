@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 import static com.corebuilders.bot.service.MarketplaceException.validation;
 
 /** Allows listing images only from explicitly trusted HTTPS hosts. */
-public final class MarketplaceImagePolicy {
+public final class MarketplaceImagePolicy implements MarketplaceListingImagePolicy {
     private final Set<String> allowedHosts;
 
     public MarketplaceImagePolicy(Set<String> allowedHosts) {
@@ -19,6 +19,7 @@ public final class MarketplaceImagePolicy {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
+    @Override
     public String validate(String value) {
         if (value == null || value.isBlank()) return null;
         if (value.length() > 1000) throw validation("Image URL is too long.");

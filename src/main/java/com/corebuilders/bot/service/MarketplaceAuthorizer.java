@@ -11,18 +11,20 @@ import static com.corebuilders.bot.db.Schema.MEMBERS;
 import static com.corebuilders.bot.service.MarketplaceException.forbidden;
 
 /** Central marketplace authorization policy, deliberately separate from login authentication. */
-public final class MarketplaceAuthorizer {
+public final class MarketplaceAuthorizer implements MarketplaceAccessPolicy {
     private final QueryDslDatabase database;
 
     public MarketplaceAuthorizer(QueryDslDatabase database) {
         this.database = Objects.requireNonNull(database, "database");
     }
 
+    @Override
     public void requireAuthorized(UUID memberId) {
         require(memberId, false);
     }
 
     /** Must be called inside a transaction before a security-sensitive mutation. */
+    @Override
     public void requireAuthorizedForUpdate(UUID memberId) {
         require(memberId, true);
     }

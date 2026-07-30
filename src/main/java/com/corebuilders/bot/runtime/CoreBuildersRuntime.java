@@ -225,7 +225,10 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                         new DiscordOAuthHttpClient(websiteConfig, properties.getGuildId(), objectMapper),
                         new CoreWebsiteIdentity(database, ledger),
                         webLogin,
-                        marketplace,
+                        marketplace, // catalog reads
+                        marketplace, // shop management
+                        marketplace, // cart and checkout
+                        marketplace, // order lifecycle
                         plugin.getLogger()
                 );
                 websiteServer.start();
