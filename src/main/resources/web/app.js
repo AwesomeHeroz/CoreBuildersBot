@@ -112,8 +112,30 @@ async function startMinecraftLogin() {
       if (!dialog.isConnected || !dialog.open) return;
       const result = await api('/api/auth/complete', {
         method: 'POST',
-        body: { challengeToken: challenge.challengeToken }
+        body: { challengeToken: challenge.challengeToken, confirm: false }
       });
+      if (result.status === 'ready') {
+        const accepted = window.confirm(
+          `Minecraft account “${result.minecraftName}” verified this login. Continue with this account?`
+        );
+        if (!accepted) {
+          dialog.close();
+          notify('Login cancelled. Generate a new code when ready.');
+          return;
+        }
+        const completed = await api('/api/auth/complete', {
+          method: 'POST',
+          body: { challengeToken: challenge.challengeToken, confirm: true }
+        });
+        if (completed.status !== 'completed') throw new Error('Login could not be completed.');
+        dialog.close();
+        await loadMe();
+        if (state.me?.discordUserId) await loadCart();
+        notify(state.me?.discordUserId
+          ? 'Minecraft login successful.'
+          : 'Minecraft login successful. Link Discord to unlock marketplace account features.');
+        return;
+      }
       if (result.status === 'completed') {
         dialog.close();
         await loadMe();
@@ -244,7 +266,7 @@ function itemCard(item) {
   footer.append(element('span', 'price', shortPoints(item.price)));
   const add = element('button', 'button primary', item.stock > 0 ? 'Add to cart' : 'Out of stock');
   add.type = 'button';
-  const own = state.me && state.me.memberId === item.sellerMemberId;
+  const own = Boolean(item.ownedByCurrentUser);
   const marketplaceAccountReady = Boolean(state.me?.discordUserId);
   add.disabled = !marketplaceAccountReady || item.stock <= 0 || own;
   add.title = !state.me
@@ -415,7 +437,16 @@ async function checkout() {
   const button = $('#checkout-button');
   button.disabled = true;
   try {
-    const order = await api('/api/cart/checkout', { method: 'POST' });
+    const checkoutRequest = {
+      expectedTotal: state.cart.total,
+      items: state.cart.items.map((line) => ({
+        itemId: line.item.id,
+        quantity: line.quantity,
+        unitPrice: line.item.price,
+        version: line.item.version
+      }))
+    };
+    const order = await api('/api/cart/checkout', { method: 'POST', body: checkoutRequest });
     notify(`Order placed successfully for ${points(order.totalPrice)}.`);
     await Promise.all([loadMe(), loadCart(), loadItems(), loadOrders()]);
     showSection('orders');
@@ -452,7 +483,46 @@ function renderOrders(orders) {
       const info = element('div');
       info.append(element('strong', '', `${line.quantity} × ${line.itemName}`));
       info.append(element('div', 'muted', `${line.shopName} · ${line.status.replaceAll('_', ' ')}`));
-      row.append(info, element('span', '', shortPoints(line.lineTotal)));
+      const amount = element('span', '', shortPoints(line.lineTotal));
+      row.append(info, amount);
+      if (line.status === 'PENDING_DELIVERY') {
+        const cancel = element('button', 'button ghost', 'Cancel');
+        cancel.type = 'button';
+        cancel.addEventListener('click', async () => {
+          if (!window.confirm(`Cancel ${line.itemName} and refund ${shortPoints(line.lineTotal)}?`)) return;
+          try {
+            await api(`/api/orders/${line.id}/cancel`, { method: 'POST' });
+            await Promise.all([loadOrders(), loadMe(), loadItems()]);
+            notify('Order line cancelled and refunded.');
+          } catch (error) { notify(error.message, true); }
+        });
+        row.append(cancel);
+      } else if (line.status === 'DELIVERED' && !line.fundsReleased) {
+        const actions = element('div', 'management-actions');
+        const confirm = element('button', 'button primary', 'Confirm received');
+        confirm.type = 'button';
+        confirm.addEventListener('click', async () => {
+          if (!window.confirm(`Confirm that you received ${line.itemName}? This releases payment to the seller.`)) return;
+          try {
+            await api(`/api/orders/${line.id}/confirm`, { method: 'POST' });
+            await Promise.all([loadOrders(), loadMe()]);
+            notify('Delivery confirmed and seller paid.');
+          } catch (error) { notify(error.message, true); }
+        });
+        const dispute = element('button', 'button ghost', 'Report problem');
+        dispute.type = 'button';
+        dispute.addEventListener('click', async () => {
+          const reason = window.prompt('Describe the delivery problem (5–500 characters):');
+          if (!reason) return;
+          try {
+            await api(`/api/orders/${line.id}/dispute`, { method: 'POST', body: { reason } });
+            await loadOrders();
+            notify('The order line is now disputed. Staff review is required.');
+          } catch (error) { notify(error.message, true); }
+        });
+        actions.append(confirm, dispute);
+        row.append(actions);
+      }
       lines.append(row);
     }
     card.append(lines);

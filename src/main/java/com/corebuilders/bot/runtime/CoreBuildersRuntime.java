@@ -9,6 +9,7 @@ import com.corebuilders.bot.config.WebsiteConfig;
 import com.corebuilders.bot.config.ApplicationPanelConfig;
 import com.corebuilders.bot.db.QueryDslDatabase;
 import com.corebuilders.bot.model.RankCatalog;
+import com.corebuilders.bot.minecraft.MinecraftIdentityPolicy;
 import com.corebuilders.bot.model.ShopCatalog;
 import com.corebuilders.bot.persistence.QueryDslWebLoginChallengeRepository;
 import com.corebuilders.bot.discord.ApplicationDiscordListener;
@@ -98,6 +99,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         RankCatalog ranks = ProgressionConfig.from(plugin.getConfig());
         ShopCatalog shopCatalog = ShopConfig.from(plugin.getConfig());
         WebsiteConfig websiteConfig = WebsiteConfig.from(plugin.getConfig());
+        MinecraftIdentityPolicy.validate(plugin, websiteConfig);
         HikariDataSource dataSource = null;
         DiscordBotListener listener = null;
         ApplicationDiscordListener applicationListener = null;
@@ -119,7 +121,8 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             ProjectService projects = new ProjectService(database, ledger, audit);
             MissionService missions = new MissionService(database, ledger, audit);
             ShopService shop = new ShopService(database, ledger, audit);
-            MarketplaceService marketplace = new MarketplaceService(database, ledger, audit);
+            MarketplaceService marketplace = new MarketplaceService(
+                    database, ledger, audit, websiteConfig.allowedImageHosts());
             ShopService.CatalogSyncResult shopSync = shop.synchronizeCatalog(shopCatalog);
             plugin.getLogger().info("Shop catalog synchronized: " + shopSync.inserted() + " inserted, "
                     + shopSync.updated() + " updated, " + shopSync.disabled() + " disabled.");
@@ -162,6 +165,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     projects,
                     missions,
                     shop,
+                    marketplace,
                     audit,
                     links,
                     permissions,

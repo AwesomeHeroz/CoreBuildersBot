@@ -232,16 +232,29 @@ database:
 minecraft:
   link-code-expiry-minutes: 10
   leaderboard-size: 10
+  web-login:
+    # ONLINE_MODE requires Paper online-mode=true.
+    # TRUSTED_PROXY is only for a securely configured Velocity/Bungee backend that cannot be reached directly.
+    # Set the confirmation only after modern forwarding/shared-secret validation and firewalling are verified.
+    # DEVELOPMENT is restricted to a localhost website URL.
+    identity-mode: "ONLINE_MODE"
+    trusted-proxy-confirmed: false
 
 website:
   # Starts an embedded HTTP server inside the Paper plugin.
   enabled: false
-  bind-address: "0.0.0.0"
+  # Bind loopback by default. A reverse proxy should terminate TLS and forward locally.
+  bind-address: "127.0.0.1"
   port: 8080
   # Public origin only, with no path, query, or fragment. Use HTTPS in production.
   public-base-url: "http://localhost:8080"
   worker-threads: 16
   max-request-bytes: 1048576
+
+  marketplace:
+    # Listing images are disabled unless their HTTPS host is explicitly trusted here.
+    # Do not add localhost, private network hosts, or arbitrary user-controlled image proxies.
+    allowed-image-hosts: []
 
   discord-oauth:
     client-id: "" # Prefer COREBOT_DISCORD_OAUTH_CLIENT_ID
@@ -254,3 +267,4 @@ website:
     # Keep true behind HTTPS. Set false only for local HTTP development.
     secure: true
     session-hours: 24
+    idle-minutes: 30

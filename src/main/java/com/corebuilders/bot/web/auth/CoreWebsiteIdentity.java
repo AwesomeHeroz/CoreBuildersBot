@@ -58,7 +58,7 @@ public final class CoreWebsiteIdentity implements WebsiteIdentity {
         if (!member.active()) {
             throw new IllegalStateException("Your Core Builders profile is inactive.");
         }
-        return new SessionPrincipal(member.id(), member.discordUserId(), member.username(), identity.avatarUrl());
+        return new SessionPrincipal(member.id(), member.discordUserId(), member.username(), identity.avatarUrl(), 0L);
     }
 
     @Override
@@ -70,7 +70,8 @@ public final class CoreWebsiteIdentity implements WebsiteIdentity {
                         MEMBERS.username,
                         MEMBERS.active,
                         MEMBERS.minecraftName,
-                        MEMBERS.discordAvatarUrl)
+                        MEMBERS.discordAvatarUrl,
+                        MEMBERS.securityVersion)
                 .from(MEMBERS)
                 .where(MEMBERS.id.eq(uuid(memberId)))
                 .fetchOne());
@@ -88,7 +89,8 @@ public final class CoreWebsiteIdentity implements WebsiteIdentity {
                 uuid(member.get(MEMBERS.id)),
                 member.get(MEMBERS.discordUserId),
                 username,
-                member.get(MEMBERS.discordAvatarUrl)
+                member.get(MEMBERS.discordAvatarUrl),
+                member.get(MEMBERS.securityVersion) == null ? 0L : member.get(MEMBERS.securityVersion)
         );
     }
 
@@ -154,6 +156,7 @@ public final class CoreWebsiteIdentity implements WebsiteIdentity {
                         .setNull(MEMBERS.minecraftName)
                         .set(MEMBERS.active, false)
                         .set(MEMBERS.minecraftLoginProvisional, false)
+                        .set(MEMBERS.securityVersion, MEMBERS.securityVersion.add(1L))
                         .set(MEMBERS.updatedAt, now())
                         .where(MEMBERS.id.eq(uuid(memberId)))
                         .execute());
@@ -163,6 +166,7 @@ public final class CoreWebsiteIdentity implements WebsiteIdentity {
                         .set(MEMBERS.discordUsername, safe(identity.displayName(), 100))
                         .set(MEMBERS.discordAvatarUrl, safe(identity.avatarUrl(), 1000))
                         .set(MEMBERS.minecraftLoginProvisional, false)
+                        .set(MEMBERS.securityVersion, MEMBERS.securityVersion.add(1L))
                         .set(MEMBERS.updatedAt, now())
                         .where(MEMBERS.id.eq(legacyMemberId))
                         .execute());
@@ -173,7 +177,7 @@ public final class CoreWebsiteIdentity implements WebsiteIdentity {
                     .set(MEMBERS.discordUserId, identity.id())
                     .set(MEMBERS.discordUsername, safe(identity.displayName(), 100))
                     .set(MEMBERS.discordAvatarUrl, safe(identity.avatarUrl(), 1000))
-                    .set(MEMBERS.minecraftLoginProvisional, false)
+                    .set(MEMBERS.securityVersion, MEMBERS.securityVersion.add(1L))
                     .set(MEMBERS.updatedAt, now())
                     .where(MEMBERS.id.eq(uuid(memberId)))
                     .execute());

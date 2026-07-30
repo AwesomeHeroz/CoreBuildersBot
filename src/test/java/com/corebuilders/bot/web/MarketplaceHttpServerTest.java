@@ -26,6 +26,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -65,26 +68,35 @@ class MarketplaceHttpServerTest {
                 false,
                 false,
                 Duration.ofHours(1),
+                Duration.ofMinutes(30),
                 1024 * 1024,
-                4
+                4,
+                Set.of("example.com")
         );
         DiscordOAuth oauth = new FakeOAuth();
+        AtomicBoolean discordLinked = new AtomicBoolean(false);
+        AtomicLong securityVersion = new AtomicLong(0L);
         WebsiteIdentity identity = new WebsiteIdentity() {
             @Override
             public SessionPrincipal ensureProfile(DiscordIdentity discord) {
-                return new SessionPrincipal(MEMBER_ID, discord.id(), discord.displayName(), discord.avatarUrl());
+                return new SessionPrincipal(MEMBER_ID, discord.id(), discord.displayName(), discord.avatarUrl(), securityVersion.get());
             }
 
             @Override
             public SessionPrincipal requireProfile(UUID memberId) {
                 assertEquals(MEMBER_ID, memberId);
-                return new SessionPrincipal(MEMBER_ID, null, "Builder", null);
+                return new SessionPrincipal(MEMBER_ID,
+                        discordLinked.get() ? "123456789012345678" : null,
+                        "Builder", discordLinked.get() ? "https://cdn.example/avatar.png" : null,
+                        securityVersion.get());
             }
 
             @Override
             public SessionPrincipal linkDiscord(UUID memberId, DiscordIdentity discord) {
                 assertEquals(MEMBER_ID, memberId);
-                return new SessionPrincipal(MEMBER_ID, discord.id(), discord.displayName(), discord.avatarUrl());
+                discordLinked.set(true);
+                long version = securityVersion.incrementAndGet();
+                return new SessionPrincipal(MEMBER_ID, discord.id(), discord.displayName(), discord.avatarUrl(), version);
             }
 
             @Override
@@ -122,6 +134,8 @@ class MarketplaceHttpServerTest {
 
         Response search = request("GET", "/api/items?q=kit&category=Kits&sort=price&direction=asc&page=2&pageSize=10", null, null, null);
         assertEquals(200, search.status());
+        assertTrue(search.json().path("items").get(0).path("sellerMemberId").isMissingNode());
+        assertTrue(search.json().path("items").get(0).path("sellerDiscordId").isMissingNode());
         assertEquals("kit", marketplace.lastSearch.text());
         assertEquals("Kits", marketplace.lastSearch.category());
         assertEquals(ItemSort.PRICE, marketplace.lastSearch.sort());
@@ -133,6 +147,8 @@ class MarketplaceHttpServerTest {
         Response publicShop = request("GET", "/api/shops/" + SHOP_ID, null, null, null);
         assertEquals(200, publicShop.status());
         assertEquals("Seller Shop", publicShop.json().path("shop").path("name").asText());
+        assertTrue(publicShop.json().path("shop").path("ownerMemberId").isMissingNode());
+        assertTrue(publicShop.json().path("shop").path("ownerDiscordId").isMissingNode());
 
         Login login = login();
         assertNotNull(login.sessionCookie());
@@ -147,7 +163,7 @@ class MarketplaceHttpServerTest {
         assertEquals("discord_link_required",
                 blockedUntilDiscordLink.json().path("error").path("code").asText());
 
-        linkDiscord(login);
+        login = linkDiscord(login);
         Response linkedMe = request("GET", "/api/auth/me", login.sessionCookie(), null, null);
         assertEquals("123456789012345678",
                 linkedMe.json().path("user").path("discordUserId").asText());
@@ -201,7 +217,9 @@ class MarketplaceHttpServerTest {
         assertEquals(200, cartRemoved.status());
         assertEquals(0, cartRemoved.json().path("itemCount").asInt());
 
-        Response checkout = request("POST", "/api/cart/checkout", login.sessionCookie(), login.csrfToken(), null);
+        Response checkout = request("POST", "/api/cart/checkout", login.sessionCookie(), login.csrfToken(),
+                "{\"expectedTotal\":300,\"items\":[{\"itemId\":\"" + ITEM_ID
+                        + "\",\"quantity\":2,\"unitPrice\":150,\"version\":1}]}");
         assertEquals(201, checkout.status());
         assertEquals(ORDER_ID.toString(), checkout.json().path("id").asText());
 
@@ -218,6 +236,12 @@ class MarketplaceHttpServerTest {
         Response delivered = request("POST", "/api/sales/" + LINE_ID + "/delivered", login.sessionCookie(), login.csrfToken(), null);
         assertEquals(200, delivered.status());
         assertEquals("DELIVERED", delivered.json().path("status").asText());
+        assertEquals(200, request("POST", "/api/orders/" + LINE_ID + "/confirm",
+                login.sessionCookie(), login.csrfToken(), null).status());
+        assertEquals(200, request("POST", "/api/orders/" + LINE_ID + "/cancel",
+                login.sessionCookie(), login.csrfToken(), null).status());
+        assertEquals(200, request("POST", "/api/orders/" + LINE_ID + "/dispute",
+                login.sessionCookie(), login.csrfToken(), "{\"reason\":\"Delivery problem\"}").status());
 
         Response logout = request("POST", "/api/auth/logout", login.sessionCookie(), login.csrfToken(), null);
         assertEquals(200, logout.status());
@@ -249,7 +273,7 @@ class MarketplaceHttpServerTest {
         assertEquals(302, invalidState.status());
         assertTrue(invalidState.headers().firstValue("Location").orElseThrow().contains("invalid_state"));
 
-        linkDiscord(login);
+        login = linkDiscord(login);
         HttpRequest badContentType = HttpRequest.newBuilder(baseUri.resolve("/api/me/shop"))
                 .header("Cookie", login.sessionCookie())
                 .header("X-CSRF-Token", login.csrfToken())
@@ -267,13 +291,18 @@ class MarketplaceHttpServerTest {
         assertFalse(challengeToken.isBlank());
         assertTrue(challenge.json().path("command").asText().startsWith("/core login "));
 
-        String completionBody = "{\"challengeToken\":\"" + challengeToken + "\"}";
+        String completionBody = "{\"challengeToken\":\"" + challengeToken + "\",\"confirm\":false}";
         Response pending = request("POST", "/api/auth/complete", null, null, completionBody);
         assertEquals(202, pending.status());
         assertEquals("pending", pending.json().path("status").asText());
 
         loginRepository.verifyLatest();
-        Response completed = request("POST", "/api/auth/complete", null, null, completionBody);
+        Response ready = request("POST", "/api/auth/complete", null, null, completionBody);
+        assertEquals(200, ready.status());
+        assertEquals("ready", ready.json().path("status").asText());
+        assertEquals("Builder", ready.json().path("minecraftName").asText());
+        Response completed = request("POST", "/api/auth/complete", null, null,
+                "{\"challengeToken\":\"" + challengeToken + "\",\"confirm\":true}");
         assertEquals(200, completed.status());
         assertEquals("completed", completed.json().path("status").asText());
         String session = cookieValue(completed.headers(), "core_session");
@@ -283,7 +312,7 @@ class MarketplaceHttpServerTest {
         return new Login("core_session=" + session, me.json().path("csrfToken").asText());
     }
 
-    private void linkDiscord(Login login) throws Exception {
+    private Login linkDiscord(Login login) throws Exception {
         Response start = request("GET", "/api/account/discord/link", login.sessionCookie(), null, null);
         assertEquals(302, start.status());
         String state = cookieValue(start.headers(), "core_oauth_state");
@@ -295,6 +324,11 @@ class MarketplaceHttpServerTest {
                 login.sessionCookie() + "; core_oauth_state=" + state, null, null);
         assertEquals(302, callback.status());
         assertTrue(callback.headers().firstValue("Location").orElseThrow().contains("discord=linked"));
+        String rotated = cookieValue(callback.headers(), "core_session");
+        assertFalse(rotated.isBlank());
+        assertNotEquals(login.sessionCookie(), "core_session=" + rotated);
+        Response me = request("GET", "/api/auth/me", "core_session=" + rotated, null, null);
+        return new Login("core_session=" + rotated, me.json().path("csrfToken").asText());
     }
 
     private Response request(String method, String path, String cookie, String csrf, String json) throws Exception {
@@ -354,18 +388,19 @@ class MarketplaceHttpServerTest {
         }
 
         @Override
-        public CompletionResult complete(String browserTokenHash, Instant now) {
+        public CompletionResult complete(String browserTokenHash, Instant now, boolean consume) {
             if (challenge == null || !challenge.browserTokenHash().equals(browserTokenHash)) {
-                return new CompletionResult(CompletionStatus.INVALID, null);
+                return new CompletionResult(CompletionStatus.INVALID, null, null);
             }
             if (consumed) {
-                return new CompletionResult(CompletionStatus.USED, MEMBER_ID);
+                return new CompletionResult(CompletionStatus.USED, MEMBER_ID, "Builder");
             }
             if (!verified) {
-                return new CompletionResult(CompletionStatus.PENDING, null);
+                return new CompletionResult(CompletionStatus.PENDING, null, null);
             }
+            if (!consume) return new CompletionResult(CompletionStatus.READY, MEMBER_ID, "Builder");
             consumed = true;
-            return new CompletionResult(CompletionStatus.COMPLETED, MEMBER_ID);
+            return new CompletionResult(CompletionStatus.COMPLETED, MEMBER_ID, "Builder");
         }
 
         void verifyLatest() {
@@ -485,9 +520,10 @@ class MarketplaceHttpServerTest {
         }
 
         @Override
-        public MarketplaceOrder checkout(UUID buyerMemberId, String actorDiscordId) {
+        public MarketplaceOrder checkout(UUID buyerMemberId, String actorDiscordId, CheckoutRequest request) {
             assertEquals(MEMBER_ID, buyerMemberId);
             assertEquals("123456789012345678", actorDiscordId);
+            assertEquals(300L, request.expectedTotal());
             return order();
         }
 
@@ -509,25 +545,39 @@ class MarketplaceHttpServerTest {
             return line("DELIVERED", NOW.plusSeconds(60));
         }
 
+        @Override public MarketplaceOrderLine confirmDelivery(UUID buyerMemberId, UUID lineId) {
+            return line("SETTLED", NOW.plusSeconds(60));
+        }
+        @Override public MarketplaceOrderLine cancelLine(UUID buyerMemberId, UUID lineId) {
+            return line("CANCELLED", null);
+        }
+        @Override public MarketplaceOrderLine disputeLine(UUID buyerMemberId, UUID lineId, String reason) {
+            return line("DISPUTED", NOW.plusSeconds(60));
+        }
+
         private MarketplaceCart cartValue() {
             List<CartLine> lines = cartQuantity == 0 ? List.of() : List.of(new CartLine(item, cartQuantity, item.price() * cartQuantity));
             return new MarketplaceCart(CART_ID, MEMBER_ID, lines, item.price() * cartQuantity, cartQuantity, NOW);
         }
 
         private MarketplaceOrder order() {
-            return new MarketplaceOrder(ORDER_ID, MEMBER_ID, 300L, "PAID", List.of(line("PENDING_DELIVERY", null)), NOW, NOW);
+            return new MarketplaceOrder(ORDER_ID, MEMBER_ID, 300L, "HELD", List.of(line("PENDING_DELIVERY", null)), NOW, NOW);
         }
 
         private MarketplaceOrderLine line(String status, Instant deliveredAt) {
             return new MarketplaceOrderLine(LINE_ID, ORDER_ID, ITEM_ID, SHOP_ID, SELLER_ID, MEMBER_ID,
                     "Builder", "Seller Shop", item.name(), item.imageUrl(), item.category(), 2, 150L, 300L,
-                    status, NOW, deliveredAt);
+                    status, "SETTLED".equals(status), NOW, deliveredAt,
+                    "SETTLED".equals(status) ? NOW.plusSeconds(120) : null,
+                    "DISPUTED".equals(status) ? NOW.plusSeconds(120) : null,
+                    "DISPUTED".equals(status) ? "Delivery problem" : null,
+                    null, null, null);
         }
 
         private MarketplaceItem fromInput(ItemInput input) {
             return new MarketplaceItem(ITEM_ID, SHOP_ID, "Seller Shop", SELLER_ID,
                     "987654321098765432", "Seller", input.name(), input.description(), input.imageUrl(),
-                    input.stock(), input.price(), input.category(), input.active(), NOW, NOW);
+                    input.stock(), input.price(), input.category(), input.active(), 1L, NOW, NOW);
         }
 
         private static PlayerShop shop(UUID id, UUID ownerId, String name) {
@@ -543,7 +593,7 @@ class MarketplaceHttpServerTest {
         private static MarketplaceItem item(String name, boolean active) {
             return new MarketplaceItem(ITEM_ID, SHOP_ID, "Seller Shop", SELLER_ID,
                     "987654321098765432", "Seller", name, "Ready to fight",
-                    "https://example.com/kit.png", 5, 150L, "Kits", active, NOW, NOW);
+                    "https://example.com/kit.png", 5, 150L, "Kits", active, 1L, NOW, NOW);
         }
     }
 }

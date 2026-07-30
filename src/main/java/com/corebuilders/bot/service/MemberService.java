@@ -89,6 +89,8 @@ public final class MemberService {
         return database.inTransaction(() -> {
             long changed = database.query(q -> q.update(MEMBERS)
                     .set(MEMBERS.reputation, reputation.name())
+                    .set(MEMBERS.minecraftLoginProvisional, reputation == Reputation.UNVERIFIED)
+                    .set(MEMBERS.securityVersion, MEMBERS.securityVersion.add(1L))
                     .set(MEMBERS.updatedAt, now())
                     .where(MEMBERS.discordUserId.eq(discordUserId))
                     .execute());
@@ -104,7 +106,9 @@ public final class MemberService {
         return database.inTransaction(() -> {
             String role = primaryRole == null || primaryRole.isBlank() ? null : primaryRole.trim();
             long changed = database.query(q -> {
-                var update = q.update(MEMBERS).set(MEMBERS.updatedAt, now());
+                var update = q.update(MEMBERS)
+                        .set(MEMBERS.securityVersion, MEMBERS.securityVersion.add(1L))
+                        .set(MEMBERS.updatedAt, now());
                 if (role == null) update.setNull(MEMBERS.primaryRole);
                 else update.set(MEMBERS.primaryRole, role);
                 return update.where(MEMBERS.discordUserId.eq(discordUserId)).execute();
@@ -120,6 +124,7 @@ public final class MemberService {
         return database.inTransaction(() -> {
             long changed = database.query(q -> q.update(MEMBERS)
                     .set(MEMBERS.active, active)
+                    .set(MEMBERS.securityVersion, MEMBERS.securityVersion.add(1L))
                     .set(MEMBERS.updatedAt, now())
                     .where(MEMBERS.discordUserId.eq(discordUserId))
                     .execute());

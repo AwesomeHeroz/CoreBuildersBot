@@ -113,7 +113,7 @@ public final class ShopService {
             }
 
             UUID orderId = UUID.randomUUID();
-            ledger.addCredits(member.id(), -item.price(), SourceType.SHOP_PURCHASE,
+            ledger.debitIfSufficient(member.id(), item.price(), SourceType.SHOP_PURCHASE,
                     orderId, "Shop purchase: " + item.name(), member.discordUserId());
 
             database.query(q -> q.insert(SHOP_ORDERS)

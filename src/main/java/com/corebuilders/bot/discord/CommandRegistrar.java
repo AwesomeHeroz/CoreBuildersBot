@@ -171,6 +171,15 @@ public final class CommandRegistrar {
                                 .addOption(OptionType.STRING, "reason", "Refund reason.", true)
                 ));
 
+        commands.add(Commands.slash("marketplace-dispute", "Review and resolve player marketplace disputes.")
+                .addSubcommands(
+                        new SubcommandData("list", "List unresolved marketplace disputes; staff only."),
+                        new SubcommandData("resolve", "Resolve a marketplace dispute; admin only.")
+                                .addOption(OptionType.STRING, "id", "Marketplace order-line UUID.", true)
+                                .addOption(OptionType.STRING, "resolution", "REFUND_BUYER or RELEASE_SELLER.", true)
+                                .addOption(OptionType.STRING, "reason", "Audited resolution reason.", true)
+                ));
+
         commands.add(Commands.slash("project", "Core Builders project management.")
                 .addSubcommands(
                         new SubcommandData("list", "List active projects."),

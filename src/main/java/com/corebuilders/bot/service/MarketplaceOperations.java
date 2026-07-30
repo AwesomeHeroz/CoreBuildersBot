@@ -23,8 +23,11 @@ public interface MarketplaceOperations {
     MarketplaceCart cart(UUID memberId);
     MarketplaceCart setCartQuantity(UUID memberId, UUID itemId, int quantity);
     MarketplaceCart removeCartItem(UUID memberId, UUID itemId);
-    MarketplaceOrder checkout(UUID buyerMemberId, String actorDiscordId);
+    MarketplaceOrder checkout(UUID buyerMemberId, String actorDiscordId, CheckoutRequest request);
     List<MarketplaceOrder> purchases(UUID buyerMemberId, int limit);
     List<MarketplaceOrderLine> sales(UUID sellerMemberId, int limit);
     MarketplaceOrderLine markDelivered(UUID sellerMemberId, UUID lineId);
+    MarketplaceOrderLine confirmDelivery(UUID buyerMemberId, UUID lineId);
+    MarketplaceOrderLine cancelLine(UUID buyerMemberId, UUID lineId);
+    MarketplaceOrderLine disputeLine(UUID buyerMemberId, UUID lineId, String reason);
 }

@@ -1,5 +1,6 @@
 package com.corebuilders.bot.minecraft;
 
+import com.corebuilders.bot.application.RequestRateLimiter;
 import com.corebuilders.bot.model.Models.LeaderboardEntry;
 import com.corebuilders.bot.model.Models.ProfileSnapshot;
 import com.corebuilders.bot.service.AchievementService;
@@ -16,6 +17,7 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +30,8 @@ public final class CoreCommand implements CommandExecutor, TabCompleter {
     private final AchievementService achievements;
     private final LedgerService ledger;
     private final WebLoginService webLogin;
+    private final RequestRateLimiter webLoginLimiter =
+            new RequestRateLimiter(Duration.ofSeconds(3), 120, Duration.ofMinutes(1));
 
     public CoreCommand(
             JavaPlugin plugin,
@@ -51,14 +55,14 @@ public final class CoreCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("This command is intended for players.");
             return true;
         }
-        if (!player.hasPermission("corebuilders.use")) {
-            player.sendMessage("§cYou do not have permission to use Core Builders commands.");
-            return true;
-        }
-
         UUID playerId = player.getUniqueId();
         String playerName = player.getName();
         String sub = args.length == 0 ? "help" : args[0].toLowerCase(Locale.ROOT);
+        String requiredPermission = "login".equals(sub) ? "corebuilders.web-login" : "corebuilders.use";
+        if (!player.hasPermission(requiredPermission)) {
+            player.sendMessage("§cYou do not have permission to use this Core Builders command.");
+            return true;
+        }
 
         switch (sub) {
             case "help" -> help(player, label);
@@ -68,12 +72,22 @@ public final class CoreCommand implements CommandExecutor, TabCompleter {
                             + label + " login <code>§e.");
                     return true;
                 }
+                RequestRateLimiter.Decision decision = webLoginLimiter.tryAcquire(playerId.toString());
+                if (!decision.allowed()) {
+                    player.sendMessage("§cToo many login attempts. Try again in " + decision.retryAfterSeconds() + " second(s).");
+                    return true;
+                }
                 async(player, () -> loginMessage(webLogin.verifyFromGame(args[1], playerId, playerName)));
             }
             case "link" -> {
                 if (args.length < 2) {
                     player.sendMessage("§eUse §f/link §ein the Core Builders Discord, then run §f/"
                             + label + " link <code>§e.");
+                    return true;
+                }
+                RequestRateLimiter.Decision decision = webLoginLimiter.tryAcquire("link:" + playerId);
+                if (!decision.allowed()) {
+                    player.sendMessage("§cToo many linking attempts. Try again in " + decision.retryAfterSeconds() + " second(s).");
                     return true;
                 }
                 async(player, () -> {

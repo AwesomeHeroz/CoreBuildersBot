@@ -3,13 +3,7 @@ package com.corebuilders.bot.service;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Persistence port for one-time Minecraft verified website login challenges.
- *
- * Only hashes are persisted. The browser token and Minecraft verification code
- * exist in clear text only in the process that generated them and in the clients
- * that need to present them.
- */
+/** Persistence port for one-time Minecraft-verified website login challenges. */
 public interface WebLoginChallengeRepository {
     void create(NewChallenge challenge);
 
@@ -20,7 +14,11 @@ public interface WebLoginChallengeRepository {
             Instant now
     );
 
-    CompletionResult complete(String browserTokenHash, Instant now);
+    /**
+     * Reads challenge state. When consume is false, a verified challenge is returned as READY.
+     * When consume is true, the same challenge is atomically consumed and returned as COMPLETED.
+     */
+    CompletionResult complete(String browserTokenHash, Instant now, boolean consume);
 
     record NewChallenge(
             UUID id,
@@ -43,6 +41,7 @@ public interface WebLoginChallengeRepository {
 
     enum CompletionStatus {
         PENDING,
+        READY,
         COMPLETED,
         INVALID,
         EXPIRED,
@@ -50,7 +49,7 @@ public interface WebLoginChallengeRepository {
         INACTIVE
     }
 
-    record CompletionResult(CompletionStatus status, UUID memberId) {}
+    record CompletionResult(CompletionStatus status, UUID memberId, String minecraftName) {}
 
     final class ChallengeCollisionException extends RuntimeException {
         public ChallengeCollisionException(Throwable cause) {

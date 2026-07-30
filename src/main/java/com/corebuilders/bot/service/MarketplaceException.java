@@ -8,7 +8,8 @@ public final class MarketplaceException extends RuntimeException {
         CONFLICT,
         FORBIDDEN,
         INSUFFICIENT_FUNDS,
-        OUT_OF_STOCK
+        OUT_OF_STOCK,
+        PRICE_CHANGED
     }
 
     private final Code code;

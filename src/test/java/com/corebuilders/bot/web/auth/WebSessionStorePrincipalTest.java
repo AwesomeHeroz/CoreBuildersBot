@@ -9,19 +9,17 @@ import static org.junit.jupiter.api.Assertions.*;
 
 final class WebSessionStorePrincipalTest {
     @Test
-    void discordLinkRefreshesPrincipalWithoutChangingCsrfOrSessionId() {
-        WebSessionStore store = new WebSessionStore(Duration.ofHours(1));
+    void discordLinkRotatesSessionAndCsrfTokens() {
+        WebSessionStore store = new WebSessionStore(Duration.ofHours(1), Duration.ofMinutes(30));
         UUID memberId = UUID.randomUUID();
-        WebSessionStore.Session original = store.create(
-                new SessionPrincipal(memberId, null, "Steve", null)
-        );
+        WebSessionStore.Session original = store.create(new SessionPrincipal(memberId, null, "Steve", null, 0L));
+        SessionPrincipal linked = new SessionPrincipal(memberId, "123456789012345678", "Steve", null, 1L);
 
-        SessionPrincipal linked = new SessionPrincipal(memberId, "123456789012345678", "Steve", "https://cdn.example/avatar.png");
-        WebSessionStore.Session updated = store.replacePrincipal(original.id(), linked).orElseThrow();
+        WebSessionStore.Session rotated = store.rotate(original.id(), linked).orElseThrow();
 
-        assertEquals(original.id(), updated.id());
-        assertEquals(original.csrfToken(), updated.csrfToken());
-        assertEquals(original.expiresAt(), updated.expiresAt());
-        assertEquals(linked, updated.principal());
+        assertNotEquals(original.id(), rotated.id());
+        assertNotEquals(original.csrfToken(), rotated.csrfToken());
+        assertTrue(store.find(original.id()).isEmpty());
+        assertEquals(linked, rotated.principal());
     }
 }

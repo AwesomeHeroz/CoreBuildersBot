@@ -1,5 +1,6 @@
 package com.corebuilders.bot.web;
 
+import com.corebuilders.bot.application.RequestRateLimiter;
 import com.corebuilders.bot.config.WebsiteConfig;
 import com.corebuilders.bot.model.MarketplaceModels.*;
 import com.corebuilders.bot.service.MarketplaceException;
@@ -50,6 +51,10 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     private final Logger logger;
     private final WebSessionStore sessions;
     private final OAuthStateStore states;
+    private final RequestRateLimiter loginChallengeLimiter;
+    private final RequestRateLimiter loginCompletionLimiter;
+    private final RequestRateLimiter publicReadLimiter;
+    private final RequestRateLimiter authenticatedMutationLimiter;
     private final HttpServer server;
     private final ExecutorService executor;
 
@@ -81,8 +86,12 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         this.webLogin = webLogin;
         this.marketplace = marketplace;
         this.logger = logger;
-        this.sessions = new WebSessionStore(config.sessionLifetime());
+        this.sessions = new WebSessionStore(config.sessionLifetime(), config.idleSessionLifetime());
         this.states = new OAuthStateStore();
+        this.loginChallengeLimiter = new RequestRateLimiter(Duration.ofSeconds(5), 120, Duration.ofMinutes(1));
+        this.loginCompletionLimiter = new RequestRateLimiter(Duration.ZERO, 600, Duration.ofMinutes(1));
+        this.publicReadLimiter = new RequestRateLimiter(Duration.ZERO, 1200, Duration.ofMinutes(1));
+        this.authenticatedMutationLimiter = new RequestRateLimiter(Duration.ZERO, 600, Duration.ofMinutes(1));
         this.server = HttpServer.create(new InetSocketAddress(config.bindAddress(), config.port()), 0);
         this.executor = Executors.newFixedThreadPool(config.workerThreads(), daemonThreads("core-marketplace-http"));
         this.server.setExecutor(executor);
@@ -96,7 +105,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         logger.info("Discord account-link OAuth redirect URI (register exactly, without a trailing slash): "
                 + config.oauthRedirectUri());
         if ("http".equalsIgnoreCase(config.publicBaseUrl().getScheme())) {
-            logger.warning("Marketplace public URL uses HTTP. Prefer HTTPS for production and keep website.cookies.secure=false while using HTTP.");
+            logger.warning("Marketplace website is running in localhost-only HTTP development mode.");
         }
     }
 
@@ -143,10 +152,12 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             return;
         }
         if (path.equals("/api/auth/challenge") && method.equals("POST")) {
+            requireRateLimit(exchange, loginChallengeLimiter, "login-challenge");
             startMinecraftLogin(exchange);
             return;
         }
         if (path.equals("/api/auth/complete") && method.equals("POST")) {
+            requireRateLimit(exchange, loginCompletionLimiter, "login-complete");
             completeMinecraftLogin(exchange);
             return;
         }
@@ -155,15 +166,18 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             return;
         }
         if (path.equals("/api/account/discord/callback") && method.equals("GET")) {
+            requireRateLimit(exchange, loginCompletionLimiter, "discord-link-callback");
             finishDiscordLink(exchange);
             return;
         }
         if (path.equals("/api/auth/me") && method.equals("GET")) {
+            requireRateLimit(exchange, publicReadLimiter, "auth-me");
             authMe(exchange);
             return;
         }
         if (path.equals("/api/auth/logout") && method.equals("POST")) {
             WebSessionStore.Session session = requireSession(exchange);
+            requireRateLimit(exchange, authenticatedMutationLimiter, "logout:" + session.principal().memberId());
             requireCsrf(exchange, session);
             sessions.destroy(session.id());
             clearCookie(exchange, SESSION_COOKIE);
@@ -171,29 +185,37 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             return;
         }
         if (path.equals("/api/categories") && method.equals("GET")) {
+            requireRateLimit(exchange, publicReadLimiter, "public-read");
             sendJson(exchange, 200, Map.of("categories", marketplace.categories()));
             return;
         }
         if (path.equals("/api/items") && method.equals("GET")) {
+            requireRateLimit(exchange, publicReadLimiter, "public-read");
             Map<String, String> query = query(exchange.getRequestURI());
             ItemSearch search = new ItemSearch(
                     query.get("q"), query.get("category"), ItemSort.parse(query.get("sort")),
                     SortDirection.parse(query.get("direction")), integer(query.get("page"), 1),
                     integer(query.get("pageSize"), 20));
-            sendJson(exchange, 200, marketplace.searchItems(search));
+            UUID viewer = optionalSession(exchange).map(value -> value.principal().memberId()).orElse(null);
+            sendJson(exchange, 200, publicPage(marketplace.searchItems(search), viewer));
             return;
         }
         if (parts.size() == 3 && parts.get(0).equals("api") && parts.get(1).equals("items") && method.equals("GET")) {
+            requireRateLimit(exchange, publicReadLimiter, "public-read");
             MarketplaceItem item = marketplace.findItem(uuid(parts.get(2)))
                     .orElseThrow(() -> MarketplaceException.notFound("Marketplace item not found."));
-            sendJson(exchange, 200, item);
+            UUID viewer = optionalSession(exchange).map(value -> value.principal().memberId()).orElse(null);
+            sendJson(exchange, 200, publicItem(item, viewer));
             return;
         }
         if (parts.size() == 3 && parts.get(0).equals("api") && parts.get(1).equals("shops") && method.equals("GET")) {
+            requireRateLimit(exchange, publicReadLimiter, "public-read");
             UUID shopId = uuid(parts.get(2));
             PlayerShop shop = marketplace.findShop(shopId)
                     .orElseThrow(() -> MarketplaceException.notFound("Shop not found."));
-            sendJson(exchange, 200, new ShopPayload(shop, marketplace.shopItems(shopId)));
+            UUID viewer = optionalSession(exchange).map(value -> value.principal().memberId()).orElse(null);
+            sendJson(exchange, 200, new PublicShopPayload(publicShop(shop),
+                    marketplace.shopItems(shopId).stream().map(item -> publicItem(item, viewer)).toList()));
             return;
         }
         if (path.equals("/api/auth/login") || path.equals("/api/auth/callback")) {
@@ -203,6 +225,9 @@ public final class MarketplaceHttpServer implements AutoCloseable {
 
         WebSessionStore.Session session = requireSession(exchange);
         SessionPrincipal principal = session.principal();
+        if (!(method.equals("GET") || method.equals("HEAD"))) {
+            requireRateLimit(exchange, authenticatedMutationLimiter, "authenticated-mutation:" + principal.memberId());
+        }
         if (requiresDiscordLink(path)
                 && (principal.discordUserId() == null || principal.discordUserId().isBlank())) {
             throw new HttpStatusException(
@@ -270,7 +295,8 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         }
         if (path.equals("/api/cart/checkout") && method.equals("POST")) {
             requireCsrf(exchange, session);
-            sendJson(exchange, 201, marketplace.checkout(principal.memberId(), principal.discordUserId()));
+            CheckoutRequest request = readJson(exchange, CheckoutRequest.class);
+            sendJson(exchange, 201, marketplace.checkout(principal.memberId(), principal.discordUserId(), request));
             return;
         }
         if (path.equals("/api/orders") && method.equals("GET")) {
@@ -289,6 +315,21 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             sendJson(exchange, 200, marketplace.markDelivered(principal.memberId(), uuid(parts.get(2))));
             return;
         }
+        if (parts.size() == 4 && parts.get(0).equals("api") && parts.get(1).equals("orders")
+                && method.equals("POST")) {
+            requireCsrf(exchange, session);
+            UUID lineId = uuid(parts.get(2));
+            switch (parts.get(3)) {
+                case "confirm" -> sendJson(exchange, 200, marketplace.confirmDelivery(principal.memberId(), lineId));
+                case "cancel" -> sendJson(exchange, 200, marketplace.cancelLine(principal.memberId(), lineId));
+                case "dispute" -> {
+                    DisputeRequest request = readJson(exchange, DisputeRequest.class);
+                    sendJson(exchange, 200, marketplace.disputeLine(principal.memberId(), lineId, request.reason()));
+                }
+                default -> throw new HttpStatusException(404, "not_found", "API endpoint not found.");
+            }
+            return;
+        }
 
         sendProblem(exchange, 404, "not_found", "API endpoint not found.");
     }
@@ -300,9 +341,13 @@ public final class MarketplaceHttpServer implements AutoCloseable {
 
     private void completeMinecraftLogin(HttpExchange exchange) throws IOException {
         CompleteLoginRequest request = readJson(exchange, CompleteLoginRequest.class);
-        WebLoginChallengeRepository.CompletionResult result = webLogin.complete(request.challengeToken());
+        WebLoginChallengeRepository.CompletionResult result = webLogin.complete(
+                request.challengeToken(), request.confirm());
         switch (result.status()) {
             case PENDING -> sendJson(exchange, 202, Map.of("status", "pending"));
+            case READY -> sendJson(exchange, 200, Map.of(
+                    "status", "ready",
+                    "minecraftName", result.minecraftName() == null ? "Unknown" : result.minecraftName()));
             case COMPLETED -> {
                 SessionPrincipal principal = identity.requireProfile(result.memberId());
                 WebSessionStore.Session session = sessions.create(principal);
@@ -318,6 +363,8 @@ public final class MarketplaceHttpServer implements AutoCloseable {
 
     private void startDiscordLink(HttpExchange exchange) throws IOException {
         WebSessionStore.Session session = requireSession(exchange);
+        requireRateLimit(exchange, loginChallengeLimiter,
+                "discord-link:" + session.principal().memberId());
         String state = states.create(session.id());
         setCookie(exchange, STATE_COOKIE, state, Duration.ofMinutes(10), true);
         redirect(exchange, oauth.authorizationUri(state));
@@ -348,7 +395,9 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         try {
             DiscordIdentity discord = oauth.exchange(query.get("code"));
             SessionPrincipal principal = identity.linkDiscord(current.get().principal().memberId(), discord);
-            sessions.replacePrincipal(current.get().id(), principal);
+            WebSessionStore.Session rotated = sessions.rotate(current.get().id(), principal)
+                    .orElseThrow(() -> new IllegalStateException("The login session expired while Discord was being linked."));
+            setCookie(exchange, SESSION_COOKIE, rotated.id(), config.sessionLifetime(), true);
             redirect(exchange, siteUri("/?discord=linked"));
         } catch (OAuthException error) {
             redirect(exchange, siteUri("/?discord=error&code="
@@ -376,7 +425,26 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     }
 
     private Optional<WebSessionStore.Session> optionalSession(HttpExchange exchange) {
-        return cookie(exchange, SESSION_COOKIE).flatMap(sessions::find);
+        Optional<String> cookieValue = cookie(exchange, SESSION_COOKIE);
+        if (cookieValue.isEmpty()) return Optional.empty();
+        Optional<WebSessionStore.Session> stored = sessions.find(cookieValue.get());
+        if (stored.isEmpty()) {
+            clearCookie(exchange, SESSION_COOKIE);
+            return Optional.empty();
+        }
+        try {
+            SessionPrincipal fresh = identity.requireProfile(stored.get().principal().memberId());
+            if (fresh.securityVersion() != stored.get().principal().securityVersion()) {
+                sessions.destroy(stored.get().id());
+                clearCookie(exchange, SESSION_COOKIE);
+                return Optional.empty();
+            }
+            return stored;
+        } catch (RuntimeException error) {
+            sessions.destroy(stored.get().id());
+            clearCookie(exchange, SESSION_COOKIE);
+            return Optional.empty();
+        }
     }
 
     private void requireCsrf(HttpExchange exchange, WebSessionStore.Session session) {
@@ -537,6 +605,36 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         }
     }
 
+    private PublicItemPage publicPage(ItemPage page, UUID viewerMemberId) {
+        return new PublicItemPage(page.items().stream().map(item -> publicItem(item, viewerMemberId)).toList(),
+                page.page(), page.pageSize(), page.total());
+    }
+
+    private static PublicItem publicItem(MarketplaceItem item, UUID viewerMemberId) {
+        return new PublicItem(item.id(), item.shopId(), item.shopName(), item.sellerUsername(),
+                item.name(), item.description(), item.imageUrl(), item.stock(), item.price(),
+                item.category(), item.active(), item.version(),
+                viewerMemberId != null && viewerMemberId.equals(item.sellerMemberId()),
+                item.createdAt(), item.updatedAt());
+    }
+
+    private static PublicShop publicShop(PlayerShop shop) {
+        return new PublicShop(shop.id(), shop.ownerUsername(), shop.name(), shop.description(),
+                shop.active(), shop.createdAt(), shop.updatedAt());
+    }
+
+    private void requireRateLimit(HttpExchange exchange, RequestRateLimiter limiter, String scope) {
+        String address = exchange.getRemoteAddress() == null || exchange.getRemoteAddress().getAddress() == null
+                ? "unknown"
+                : exchange.getRemoteAddress().getAddress().getHostAddress();
+        RequestRateLimiter.Decision decision = limiter.tryAcquire(scope + ':' + address);
+        if (!decision.allowed()) {
+            exchange.getResponseHeaders().set("Retry-After", Long.toString(decision.retryAfterSeconds()));
+            throw new HttpStatusException(429, "rate_limited",
+                    "Too many requests. Try again in " + decision.retryAfterSeconds() + " second(s).");
+        }
+    }
+
     private static boolean requiresDiscordLink(String path) {
         return path.equals("/api/me/shop")
                 || path.startsWith("/api/me/shop/")
@@ -570,18 +668,23 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         return switch (code) {
             case VALIDATION -> 400;
             case NOT_FOUND -> 404;
-            case CONFLICT, OUT_OF_STOCK, INSUFFICIENT_FUNDS -> 409;
+            case CONFLICT, OUT_OF_STOCK, INSUFFICIENT_FUNDS, PRICE_CHANGED -> 409;
             case FORBIDDEN -> 403;
         };
     }
 
-    private static void applySecurityHeaders(Headers headers) {
+    private void applySecurityHeaders(Headers headers) {
         headers.set("X-Content-Type-Options", "nosniff");
         headers.set("Referrer-Policy", "no-referrer");
         headers.set("X-Frame-Options", "DENY");
         headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+        if ("https".equalsIgnoreCase(config.publicBaseUrl().getScheme())) {
+            headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+        }
+        StringBuilder images = new StringBuilder("'self' data: https://cdn.discordapp.com https://media.discordapp.net");
+        for (String host : config.allowedImageHosts()) images.append(" https://").append(host).append(" https://*.").append(host);
         headers.set("Content-Security-Policy",
-                "default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self'; "
+                "default-src 'self'; img-src " + images + "; style-src 'self'; script-src 'self'; "
                         + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://discord.com");
     }
 
@@ -612,8 +715,17 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     }
 
     private record QuantityRequest(int quantity) {}
-    private record CompleteLoginRequest(String challengeToken) {}
+    private record CompleteLoginRequest(String challengeToken, boolean confirm) {}
+    private record DisputeRequest(String reason) {}
     private record ShopPayload(PlayerShop shop, List<MarketplaceItem> items) {}
+    private record PublicShopPayload(PublicShop shop, List<PublicItem> items) {}
+    private record PublicShop(UUID id, String ownerUsername, String name, String description,
+                              boolean active, java.time.Instant createdAt, java.time.Instant updatedAt) {}
+    private record PublicItem(UUID id, UUID shopId, String shopName, String sellerUsername,
+                              String name, String description, String imageUrl, int stock, long price,
+                              String category, boolean active, long version, boolean ownedByCurrentUser,
+                              java.time.Instant createdAt, java.time.Instant updatedAt) {}
+    private record PublicItemPage(List<PublicItem> items, int page, int pageSize, long total) {}
     private record MePayload(boolean authenticated, SessionPrincipal user, long balance, String csrfToken) {}
     private record Problem(String code, String message) {}
     private record ProblemPayload(Problem error) {}

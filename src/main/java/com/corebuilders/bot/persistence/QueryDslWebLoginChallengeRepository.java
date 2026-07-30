@@ -139,11 +139,12 @@ public final class QueryDslWebLoginChallengeRepository implements WebLoginChalle
     }
 
     @Override
-    public CompletionResult complete(String browserTokenHash, Instant now) {
+    public CompletionResult complete(String browserTokenHash, Instant now, boolean consume) {
         return database.inTransaction(() -> {
             Tuple challenge = database.query(q -> q.select(
                             WEB_LOGIN_CHALLENGES.id,
                             WEB_LOGIN_CHALLENGES.memberId,
+                            WEB_LOGIN_CHALLENGES.minecraftName,
                             WEB_LOGIN_CHALLENGES.expiresAt,
                             WEB_LOGIN_CHALLENGES.verifiedAt,
                             WEB_LOGIN_CHALLENGES.consumedAt)
@@ -152,19 +153,20 @@ public final class QueryDslWebLoginChallengeRepository implements WebLoginChalle
                     .forUpdate()
                     .fetchOne());
             if (challenge == null) {
-                return new CompletionResult(CompletionStatus.INVALID, null);
+                return new CompletionResult(CompletionStatus.INVALID, null, null);
             }
 
             UUID memberId = uuid(challenge.get(WEB_LOGIN_CHALLENGES.memberId));
+            String minecraftName = challenge.get(WEB_LOGIN_CHALLENGES.minecraftName);
             if (challenge.get(WEB_LOGIN_CHALLENGES.consumedAt) != null) {
-                return new CompletionResult(CompletionStatus.USED, memberId);
+                return new CompletionResult(CompletionStatus.USED, memberId, minecraftName);
             }
             Instant expiresAt = instant(challenge.get(WEB_LOGIN_CHALLENGES.expiresAt));
             if (expiresAt == null || !expiresAt.isAfter(now)) {
-                return new CompletionResult(CompletionStatus.EXPIRED, memberId);
+                return new CompletionResult(CompletionStatus.EXPIRED, memberId, minecraftName);
             }
             if (challenge.get(WEB_LOGIN_CHALLENGES.verifiedAt) == null || memberId == null) {
-                return new CompletionResult(CompletionStatus.PENDING, null);
+                return new CompletionResult(CompletionStatus.PENDING, null, null);
             }
 
             Boolean active = database.query(q -> q.select(MEMBERS.active)
@@ -172,7 +174,10 @@ public final class QueryDslWebLoginChallengeRepository implements WebLoginChalle
                     .where(MEMBERS.id.eq(uuid(memberId)))
                     .fetchOne());
             if (!Boolean.TRUE.equals(active)) {
-                return new CompletionResult(CompletionStatus.INACTIVE, memberId);
+                return new CompletionResult(CompletionStatus.INACTIVE, memberId, minecraftName);
+            }
+            if (!consume) {
+                return new CompletionResult(CompletionStatus.READY, memberId, minecraftName);
             }
 
             long updated = database.query(q -> q.update(WEB_LOGIN_CHALLENGES)
@@ -181,8 +186,9 @@ public final class QueryDslWebLoginChallengeRepository implements WebLoginChalle
                             WEB_LOGIN_CHALLENGES.consumedAt.isNull())
                     .execute());
             return updated == 1
-                    ? new CompletionResult(CompletionStatus.COMPLETED, memberId)
-                    : new CompletionResult(CompletionStatus.USED, memberId);
+                    ? new CompletionResult(CompletionStatus.COMPLETED, memberId, minecraftName)
+                    : new CompletionResult(CompletionStatus.USED, memberId, minecraftName);
         });
     }
+
 }

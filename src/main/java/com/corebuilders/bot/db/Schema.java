@@ -61,6 +61,7 @@ public final class Schema {
         public final StringPath minecraftUuid = createString("minecraft_uuid");
         public final StringPath minecraftName = createString("minecraft_name");
         public final BooleanPath minecraftLoginProvisional = createBoolean("minecraft_login_provisional");
+        public final NumberPath<Long> securityVersion = createNumber("security_version", Long.class);
         public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
         public final DateTimePath<LocalDateTime> updatedAt = createDateTime("updated_at", LocalDateTime.class);
         public QMembers(String variable) { super(variable, "members"); }
@@ -279,6 +280,7 @@ public final class Schema {
         public final NumberPath<Long> price = createNumber("price", Long.class);
         public final StringPath category = createString("category");
         public final BooleanPath active = createBoolean("active");
+        public final NumberPath<Long> version = createNumber("version", Long.class);
         public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
         public final DateTimePath<LocalDateTime> updatedAt = createDateTime("updated_at", LocalDateTime.class);
         public QMarketplaceItems(String variable) { super(variable, "marketplace_items"); }
@@ -325,8 +327,15 @@ public final class Schema {
         public final NumberPath<Long> unitPrice = createNumber("unit_price", Long.class);
         public final NumberPath<Long> lineTotal = createNumber("line_total", Long.class);
         public final StringPath status = createString("status");
+        public final BooleanPath fundsReleased = createBoolean("funds_released");
         public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
         public final DateTimePath<LocalDateTime> deliveredAt = createDateTime("delivered_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> buyerConfirmedAt = createDateTime("buyer_confirmed_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> disputedAt = createDateTime("disputed_at", LocalDateTime.class);
+        public final StringPath disputeReason = createString("dispute_reason");
+        public final DateTimePath<LocalDateTime> resolvedAt = createDateTime("resolved_at", LocalDateTime.class);
+        public final StringPath resolution = createString("resolution");
+        public final StringPath resolutionNote = createString("resolution_note");
         public QMarketplaceOrderItems(String variable) { super(variable, "marketplace_order_items"); }
     }
 

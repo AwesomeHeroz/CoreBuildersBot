@@ -15,6 +15,9 @@ permissions:
   corebuilders.use:
     description: Use Core Builders member commands.
     default: true
+  corebuilders.web-login:
+    description: Verify website login codes from an approved Minecraft account.
+    default: op
   corebuilders.admin:
     description: Use Core Builders Minecraft administrative commands.
     default: op

@@ -16,6 +16,7 @@ class WebsiteConfigTest {
 
         assertFalse(config.enabled());
         assertEquals(8080, config.port());
+        assertEquals("127.0.0.1", config.bindAddress());
         assertEquals("http://localhost:8080/api/account/discord/callback", config.oauthRedirectUri().toString());
     }
 
@@ -49,6 +50,18 @@ class WebsiteConfigTest {
 
         assertEquals("http://localhost:9000/api/account/discord/callback", config.oauthRedirectUri().toString());
         assertFalse(config.secureCookies());
+    }
+
+
+    @Test
+    void permitsIpv6LoopbackForLocalDevelopment() {
+        YamlConfiguration yaml = enabled("http://[::1]:9000", false);
+        yaml.set("website.bind-address", "::1");
+
+        WebsiteConfig config = WebsiteConfig.from(yaml);
+
+        assertEquals("::1", config.bindAddress());
+        assertEquals("http://[::1]:9000", config.publicBaseUrl().toString());
     }
 
     @Test
@@ -96,12 +109,12 @@ class WebsiteConfigTest {
     }
 
     @Test
-    void permitsConfiguredPublicHttpWhenSecureCookiesAreDisabled() {
+    void rejectsPublicHttpEvenWhenSecureCookiesAreDisabled() {
         YamlConfiguration yaml = enabled("http://203.0.113.10:8080", false);
 
-        WebsiteConfig config = WebsiteConfig.from(yaml);
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
 
-        assertEquals("http://203.0.113.10:8080/api/account/discord/callback", config.oauthRedirectUri().toString());
+        assertTrue(error.getMessage().contains("HTTP is allowed only"));
     }
 
     @Test
@@ -111,6 +124,49 @@ class WebsiteConfigTest {
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
 
         assertTrue(error.getMessage().contains("website.cookies.secure must be false"));
+    }
+
+
+    @Test
+    void rejectsHostnamesThatOnlyLookLikeIpv4Loopback() {
+        YamlConfiguration bindYaml = enabled("https://shop.example.com", true);
+        bindYaml.set("website.bind-address", "127.evil.example");
+        assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(bindYaml));
+
+        YamlConfiguration publicYaml = enabled("http://127.evil.example:8080", false);
+        assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(publicYaml));
+    }
+
+    @Test
+    void rejectsMalformedImageHostnames() {
+        YamlConfiguration yaml = enabled("https://shop.example.com", true);
+        yaml.set("website.marketplace.allowed-image-hosts", java.util.List.of("cdn..example.com"));
+        assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
+
+        yaml.set("website.marketplace.allowed-image-hosts", java.util.List.of("-cdn.example.com"));
+        assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
+    }
+
+    @Test
+    void rejectsNonLoopbackBindAddress() {
+        YamlConfiguration yaml = enabled("https://shop.example.com", true);
+        yaml.set("website.bind-address", "0.0.0.0");
+
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
+
+        assertTrue(error.getMessage().contains("must be localhost/loopback"));
+    }
+
+    @Test
+    void acceptsPublicImageHostsAndRejectsIpLiterals() {
+        YamlConfiguration yaml = enabled("https://shop.example.com", true);
+        yaml.set("website.marketplace.allowed-image-hosts", java.util.List.of("cdn.example.com"));
+
+        WebsiteConfig config = WebsiteConfig.from(yaml);
+        assertEquals(java.util.Set.of("cdn.example.com"), config.allowedImageHosts());
+
+        yaml.set("website.marketplace.allowed-image-hosts", java.util.List.of("10.0.0.1"));
+        assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
     }
 
     private static YamlConfiguration enabled(String publicBaseUrl, boolean secureCookies) {

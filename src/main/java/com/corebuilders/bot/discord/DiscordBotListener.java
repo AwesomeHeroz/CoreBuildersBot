@@ -9,6 +9,8 @@ import com.corebuilders.bot.external.NewPlayersProvider;
 import com.corebuilders.bot.external.NewPlayersResponse;
 import com.corebuilders.bot.model.Domain.*;
 import com.corebuilders.bot.model.Models.*;
+import com.corebuilders.bot.model.MarketplaceModels.DisputeResolution;
+import com.corebuilders.bot.model.MarketplaceModels.MarketplaceOrderLine;
 import com.corebuilders.bot.model.RankDefinition;
 import com.corebuilders.bot.service.*;
 import com.corebuilders.bot.util.ErrorMessages;
@@ -16,7 +18,6 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -26,8 +27,6 @@ import static com.corebuilders.bot.discord.DiscordFormatting.*;
 import static com.corebuilders.bot.discord.command.SlashCommandOptions.*;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -42,6 +41,7 @@ public final class DiscordBotListener extends ListenerAdapter {
     private final ProjectService projects;
     private final MissionService missions;
     private final ShopService shop;
+    private final MarketplaceDisputeOperations marketplaceDisputes;
     private final AuditService audit;
     private final LinkService links;
     private final PermissionService permissions;
@@ -65,6 +65,7 @@ public final class DiscordBotListener extends ListenerAdapter {
             ProjectService projects,
             MissionService missions,
             ShopService shop,
+            MarketplaceDisputeOperations marketplaceDisputes,
             AuditService audit,
             LinkService links,
             PermissionService permissions,
@@ -80,6 +81,7 @@ public final class DiscordBotListener extends ListenerAdapter {
         this.projects = projects;
         this.missions = missions;
         this.shop = shop;
+        this.marketplaceDisputes = Objects.requireNonNull(marketplaceDisputes, "marketplaceDisputes");
         this.audit = audit;
         this.links = links;
         this.permissions = permissions;
@@ -106,6 +108,7 @@ public final class DiscordBotListener extends ListenerAdapter {
                 .register("shop", this::shop)
                 .register("buy", this::buy)
                 .register("order", this::order)
+                .register("marketplace-dispute", this::marketplaceDispute)
                 .register("project", this::project)
                 .register("mission", this::mission)
                 .register("award", this::award)
@@ -556,6 +559,43 @@ public final class DiscordBotListener extends ListenerAdapter {
         };
     }
 
+    private MessageEmbed marketplaceDispute(SlashCommandInteractionEvent event) {
+        return switch (requiredSubcommand(event)) {
+            case "list" -> {
+                permissions.requireTrustedStaff(event.getMember());
+                List<MarketplaceOrderLine> disputes = marketplaceDisputes.disputes(20);
+                String body = disputes.stream()
+                        .map(line -> "**" + line.itemName() + "** — " + formatNumber(line.lineTotal()) + " CC"
+                                + "\nBuyer: " + line.buyerUsername()
+                                + "\nLine: `" + line.id() + "`"
+                                + "\nReason: " + value(line.disputeReason()))
+                        .collect(Collectors.joining("\n\n"));
+                yield new EmbedBuilder()
+                        .setTitle("Unresolved Marketplace Disputes")
+                        .setDescription(truncate(body.isBlank() ? "No unresolved marketplace disputes." : body, 4000))
+                        .build();
+            }
+            case "resolve" -> {
+                permissions.requireAdmin(event.getMember());
+                MarketplaceOrderLine line = marketplaceDisputes.resolveDispute(
+                        uuid(requiredString(event, "id"), "marketplace order-line ID"),
+                        DisputeResolution.parse(requiredString(event, "resolution")),
+                        event.getUser().getId(),
+                        requiredString(event, "reason")
+                );
+                yield new EmbedBuilder()
+                        .setTitle("Marketplace Dispute Resolved")
+                        .setDescription("**" + line.itemName() + "** was resolved as **"
+                                + value(line.resolution()).replace('_', ' ') + "**.")
+                        .addField("Line ID", line.id().toString(), false)
+                        .addField("Amount", formatNumber(line.lineTotal()) + " CC", true)
+                        .addField("Reason", value(line.resolutionNote()), false)
+                        .build();
+            }
+            default -> throw new IllegalArgumentException("Unknown marketplace dispute action.");
+        };
+    }
+
     private MessageEmbed project(SlashCommandInteractionEvent event) {
         String sub = requiredSubcommand(event);
         return switch (sub) {
@@ -747,7 +787,13 @@ public final class DiscordBotListener extends ListenerAdapter {
             throw new IllegalStateException("This would reduce the member below 0 total CXP.");
         }
 
-        ledger.addXp(target.id(), signed, category, SourceType.ADMIN_ADJUSTMENT, null, reason, event.getUser().getId());
+        if (signed < 0) {
+            ledger.debitXpIfSufficient(target.id(), -signed, category, SourceType.ADMIN_ADJUSTMENT,
+                    null, reason, event.getUser().getId());
+        } else {
+            ledger.addXp(target.id(), signed, category, SourceType.ADMIN_ADJUSTMENT,
+                    null, reason, event.getUser().getId());
+        }
         audit.log(event.getUser().getId(), "XP_" + sub.toUpperCase(Locale.ROOT), target.discordUserId(),
                 "MEMBER", target.id().toString(), signed + " CXP. " + reason);
 
@@ -771,7 +817,13 @@ public final class DiscordBotListener extends ListenerAdapter {
             throw new IllegalStateException("This would reduce the member below 0 Core Credits.");
         }
 
-        ledger.addCredits(target.id(), signed, SourceType.ADMIN_ADJUSTMENT, null, reason, event.getUser().getId());
+        if (signed < 0) {
+            ledger.debitIfSufficient(target.id(), -signed, SourceType.ADMIN_ADJUSTMENT,
+                    null, reason, event.getUser().getId());
+        } else {
+            ledger.addCredits(target.id(), signed, SourceType.ADMIN_ADJUSTMENT,
+                    null, reason, event.getUser().getId());
+        }
         audit.log(event.getUser().getId(), "CREDITS_" + sub.toUpperCase(Locale.ROOT), target.discordUserId(),
                 "MEMBER", target.id().toString(), signed + " CC. " + reason);
         notifier.economyLog(event.getGuild(), "Core Credit Adjustment",

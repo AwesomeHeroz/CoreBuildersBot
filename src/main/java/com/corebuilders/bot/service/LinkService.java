@@ -71,7 +71,7 @@ public final class LinkService {
                         instant(tuple.get(LINK_CODES.expiresAt)));
             });
 
-            if (link.expiresAt().isBefore(Instant.now())) {
+            if (!link.expiresAt().isAfter(Instant.now())) {
                 database.query(q -> q.delete(LINK_CODES).where(LINK_CODES.code.eq(code)).execute());
                 throw new IllegalArgumentException("That link code expired. Generate a new code with /link in Discord.");
             }
@@ -96,6 +96,7 @@ public final class LinkService {
             database.query(q -> q.update(MEMBERS)
                     .set(MEMBERS.minecraftUuid, uuidText)
                     .set(MEMBERS.minecraftName, safeName(minecraftName))
+                    .set(MEMBERS.securityVersion, MEMBERS.securityVersion.add(1L))
                     .set(MEMBERS.updatedAt, now())
                     .where(MEMBERS.discordUserId.eq(link.discordUserId()))
                     .execute());
@@ -124,6 +125,7 @@ public final class LinkService {
         return database.inTransaction(() -> database.query(q -> q.update(MEMBERS)
                 .setNull(MEMBERS.minecraftUuid)
                 .setNull(MEMBERS.minecraftName)
+                .set(MEMBERS.securityVersion, MEMBERS.securityVersion.add(1L))
                 .set(MEMBERS.updatedAt, now())
                 .where(MEMBERS.minecraftUuid.eq(uuid(minecraftUuid)))
                 .execute()) > 0);
@@ -145,7 +147,16 @@ public final class LinkService {
 
     private static String normalizeCode(String value) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException("A link code is required.");
-        return value.trim().toUpperCase();
+        String code = value.trim().toUpperCase(java.util.Locale.ROOT);
+        if (code.length() != 8) throw new IllegalArgumentException("The link code must contain 8 characters.");
+        for (int i = 0; i < code.length(); i++) {
+            boolean accepted = false;
+            for (char allowed : ALPHABET) {
+                if (code.charAt(i) == allowed) { accepted = true; break; }
+            }
+            if (!accepted) throw new IllegalArgumentException("The link code contains an invalid character.");
+        }
+        return code;
     }
 
     private static String safeName(String value) {

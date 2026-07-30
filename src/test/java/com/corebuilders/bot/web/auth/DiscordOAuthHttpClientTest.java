@@ -87,7 +87,8 @@ class DiscordOAuthHttpClientTest {
         WebsiteConfig config = new WebsiteConfig(
                 true, "127.0.0.1", 0, URI.create("http://127.0.0.1"),
                 "123456789012345678", "secret", URI.create(CALLBACK),
-                true, false, Duration.ofHours(1), 1024 * 1024, 4
+                true, false, Duration.ofHours(1), Duration.ofMinutes(30),
+                1024 * 1024, 4, java.util.Set.of()
         );
         return new DiscordOAuthHttpClient(
                 config,

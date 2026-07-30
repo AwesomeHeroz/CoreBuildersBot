@@ -9,16 +9,20 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class MarketplaceMigrationTest {
     @Test
-    void migrationDefinesOneShopPerMemberAndTransactionalOrderTables() throws IOException {
-        try (var input = getClass().getResourceAsStream("/db/migration/V6__player_marketplace.sql")) {
+    void securityMigrationDefinesVersioningEscrowAndSessionInvalidationState() throws IOException {
+        try (var input = getClass().getResourceAsStream("/db/migration/V8__marketplace_security_hardening.sql")) {
             assertNotNull(input);
             String sql = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-            assertTrue(sql.contains("owner_member_id CHAR(36) NOT NULL UNIQUE"));
-            assertTrue(sql.contains("CREATE TABLE marketplace_cart_items"));
-            assertTrue(sql.contains("CREATE TABLE marketplace_orders"));
-            assertTrue(sql.contains("CREATE TABLE marketplace_order_items"));
-            assertTrue(sql.contains("idx_marketplace_item_public"));
-            assertTrue(sql.contains("idx_marketplace_sales"));
+            assertTrue(sql.contains("security_version BIGINT"));
+            assertTrue(sql.contains("version BIGINT"));
+            assertTrue(sql.contains("funds_released BOOLEAN"));
+            assertTrue(sql.contains("buyer_confirmed_at"));
+            assertTrue(sql.contains("disputed_at"));
+            assertTrue(sql.contains("resolved_at"));
+            assertTrue(sql.contains("resolution VARCHAR"));
+            assertTrue(sql.contains("resolution_note"));
+            assertTrue(sql.contains("UPDATE marketplace_order_items SET funds_released = TRUE"));
+            assertTrue(sql.contains("idx_marketplace_line_dispute_queue"));
         }
     }
 }

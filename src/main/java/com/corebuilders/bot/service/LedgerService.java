@@ -52,47 +52,96 @@ public final class LedgerService {
 
     public UUID addXp(UUID memberId, long amount, ContributionCategory category, SourceType sourceType,
                       UUID referenceId, String reason, String actorDiscordId) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException("XP credits must be positive; use debitXpIfSufficient for debits.");
+        }
+        return database.inTransaction(() -> insertXp(memberId, amount, category, sourceType,
+                referenceId, reason, actorDiscordId));
+    }
+
+    /**
+     * Atomically removes XP while holding the member row, preventing concurrent
+     * administrative adjustments from driving a member below zero.
+     */
+    public UUID debitXpIfSufficient(UUID memberId, long amount, ContributionCategory category,
+                                    SourceType sourceType, UUID referenceId, String reason,
+                                    String actorDiscordId) {
+        if (amount <= 0) throw new IllegalArgumentException("XP debit amount must be positive.");
         return database.inTransaction(() -> {
-            if (amount == 0) throw new IllegalArgumentException("XP amount cannot be zero.");
-            UUID id = UUID.randomUUID();
-            database.query(q -> {
-                var insert = q.insert(XP)
-                        .set(XP.id, uuid(id))
-                        .set(XP.memberId, uuid(memberId))
-                        .set(XP.amount, amount)
-                        .set(XP.category, category.name())
-                        .set(XP.sourceType, sourceType.name())
-                        .set(XP.reason, limit(reason, 500))
-                        .set(XP.actorDiscordId, actorDiscordId)
-                        .set(XP.createdAt, now());
-                if (referenceId == null) insert.setNull(XP.referenceId);
-                else insert.set(XP.referenceId, uuid(referenceId));
-                return insert.execute();
-            });
-            return id;
+            lockMember(memberId);
+            if (totalXp(memberId) < amount) {
+                throw new IllegalArgumentException("The member does not have enough XP for this adjustment.");
+            }
+            return insertXp(memberId, -amount, category, sourceType, referenceId, reason, actorDiscordId);
         });
     }
 
     public UUID addCredits(UUID memberId, long amount, SourceType sourceType, UUID referenceId,
                            String reason, String actorDiscordId) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Credit grants must be positive; use debitIfSufficient for debits.");
+        }
+        return database.inTransaction(() -> insertCredits(memberId, amount, sourceType,
+                referenceId, reason, actorDiscordId));
+    }
+
+    /**
+     * Atomically removes credits while holding the member row. All purchase and
+     * administrative debit paths must use this method rather than inserting a
+     * negative ledger entry directly.
+     */
+    public UUID debitIfSufficient(UUID memberId, long amount, SourceType sourceType, UUID referenceId,
+                                  String reason, String actorDiscordId) {
+        if (amount <= 0) throw new IllegalArgumentException("Credit debit amount must be positive.");
         return database.inTransaction(() -> {
-            if (amount == 0) throw new IllegalArgumentException("Credit amount cannot be zero.");
-            UUID id = UUID.randomUUID();
-            database.query(q -> {
-                var insert = q.insert(CREDITS)
-                        .set(CREDITS.id, uuid(id))
-                        .set(CREDITS.memberId, uuid(memberId))
-                        .set(CREDITS.amount, amount)
-                        .set(CREDITS.sourceType, sourceType.name())
-                        .set(CREDITS.reason, limit(reason, 500))
-                        .set(CREDITS.actorDiscordId, actorDiscordId)
-                        .set(CREDITS.createdAt, now());
-                if (referenceId == null) insert.setNull(CREDITS.referenceId);
-                else insert.set(CREDITS.referenceId, uuid(referenceId));
-                return insert.execute();
-            });
-            return id;
+            lockMember(memberId);
+            if (creditBalance(memberId) < amount) {
+                throw new MarketplaceException(MarketplaceException.Code.INSUFFICIENT_FUNDS,
+                        "Insufficient Core Credits.");
+            }
+            return insertCredits(memberId, -amount, sourceType, referenceId, reason, actorDiscordId);
         });
+    }
+
+    private UUID insertXp(UUID memberId, long amount, ContributionCategory category, SourceType sourceType,
+                          UUID referenceId, String reason, String actorDiscordId) {
+        if (amount == 0) throw new IllegalArgumentException("XP amount cannot be zero.");
+        UUID id = UUID.randomUUID();
+        database.query(q -> {
+            var insert = q.insert(XP)
+                    .set(XP.id, uuid(id))
+                    .set(XP.memberId, uuid(memberId))
+                    .set(XP.amount, amount)
+                    .set(XP.category, category.name())
+                    .set(XP.sourceType, sourceType.name())
+                    .set(XP.reason, limit(reason, 500))
+                    .set(XP.actorDiscordId, actorDiscordId)
+                    .set(XP.createdAt, now());
+            if (referenceId == null) insert.setNull(XP.referenceId);
+            else insert.set(XP.referenceId, uuid(referenceId));
+            return insert.execute();
+        });
+        return id;
+    }
+
+    private UUID insertCredits(UUID memberId, long amount, SourceType sourceType, UUID referenceId,
+                               String reason, String actorDiscordId) {
+        if (amount == 0) throw new IllegalArgumentException("Credit amount cannot be zero.");
+        UUID id = UUID.randomUUID();
+        database.query(q -> {
+            var insert = q.insert(CREDITS)
+                    .set(CREDITS.id, uuid(id))
+                    .set(CREDITS.memberId, uuid(memberId))
+                    .set(CREDITS.amount, amount)
+                    .set(CREDITS.sourceType, sourceType.name())
+                    .set(CREDITS.reason, limit(reason, 500))
+                    .set(CREDITS.actorDiscordId, actorDiscordId)
+                    .set(CREDITS.createdAt, now());
+            if (referenceId == null) insert.setNull(CREDITS.referenceId);
+            else insert.set(CREDITS.referenceId, uuid(referenceId));
+            return insert.execute();
+        });
+        return id;
     }
 
     public List<LeaderboardEntry> leaderboardOverall(int limit) {
