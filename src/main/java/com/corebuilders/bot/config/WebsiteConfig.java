@@ -23,9 +23,14 @@ public record WebsiteConfig(
         Duration idleSessionLifetime,
         int maxRequestBytes,
         int workerThreads,
-        Set<String> allowedImageHosts
+        Set<String> allowedImageHosts,
+        boolean proxyCustomAuth,
+        String originHeaderName,
+        String originHeaderSecret
 ) {
     public static final String OAUTH_CALLBACK_PATH = "/api/account/discord/callback";
+
+    public static final String DEFAULT_BIND = "0.0.0.0";
 
     public WebsiteConfig {
         allowedImageHosts = allowedImageHosts == null ? Set.of() : Set.copyOf(allowedImageHosts);
@@ -52,6 +57,24 @@ public record WebsiteConfig(
                 config.getInt("website.worker-threads", 16), 2, 256, "website.worker-threads");
         Set<String> imageHosts = allowedHosts(config.getStringList("website.marketplace.allowed-image-hosts"));
 
+        boolean proxyCustomAuth = config.getBoolean("website.origin-auth.enabled", false);
+
+        String originHeaderName = config.getString(
+                "website.origin-auth.header-name",
+                "X-CoreBuilders-Origin-Secret"
+        );
+
+        if (proxyCustomAuth && !originHeaderName.matches("[A-Za-z0-9_-]{1,64}")) {
+            throw new IllegalStateException(
+                    "website.origin-auth.header-name contains invalid characters."
+            );
+        }
+
+        String originHeaderSecret = value(
+                "COREBOT_ORIGIN_HEADER_SECRET",
+                config.getString("website.origin-auth.secret", "")
+        );
+
         URI base = publicUrl.isBlank()
                 ? URI.create("http://localhost:" + port)
                 : absoluteHttpUri(publicUrl, "website.public-base-url");
@@ -59,11 +82,11 @@ public record WebsiteConfig(
         if (!enabled) {
             return new WebsiteConfig(false, bind, port, base, clientId, clientSecret, callback,
                     requireGuild, secure, Duration.ofHours(sessionHours), Duration.ofMinutes(idleMinutes),
-                    maxBytes, workers, imageHosts);
+                    maxBytes, workers, imageHosts, proxyCustomAuth, originHeaderName, originHeaderSecret);
         }
 
-        if (bind.isBlank()) throw new IllegalStateException("website.bind-address cannot be blank.");
-        validateBindAddress(bind);
+        if (bind.isBlank()) bind = DEFAULT_BIND;
+        bind = validatedBindAddress(bind);
         base = absoluteHttpUri(required(publicUrl, "website.public-base-url / COREBOT_WEB_PUBLIC_BASE_URL"),
                 "website.public-base-url");
         validatePublicBaseUrl(base, secure);
@@ -79,7 +102,7 @@ public record WebsiteConfig(
                 "website.discord-oauth.client-secret / COREBOT_DISCORD_OAUTH_CLIENT_SECRET");
         return new WebsiteConfig(true, bind, port, base, cleanClientId, cleanSecret, callback,
                 requireGuild, secure, Duration.ofHours(sessionHours), Duration.ofMinutes(idleMinutes),
-                maxBytes, workers, imageHosts);
+                maxBytes, workers, imageHosts, proxyCustomAuth, originHeaderName, originHeaderSecret);
     }
 
     private static URI canonicalCallback(URI publicBaseUrl) {
@@ -97,13 +120,12 @@ public record WebsiteConfig(
         }
     }
 
-    private static void validateBindAddress(String bindAddress) {
+    private static String validatedBindAddress(String bindAddress) {
         String host = bindAddress.trim().toLowerCase(Locale.ROOT);
         if (!isLoopbackHost(host)) {
-            throw new IllegalStateException(
-                    "website.bind-address must be localhost/loopback. Put a hardened HTTPS reverse proxy in front of the website."
-            );
+            return DEFAULT_BIND;
         }
+        return bindAddress;
     }
 
     private static void validatePublicBaseUrl(URI base, boolean secureCookies) {

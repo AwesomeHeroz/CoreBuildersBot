@@ -71,7 +71,9 @@ class MarketplaceHttpServerTest {
                 Duration.ofMinutes(30),
                 1024 * 1024,
                 4,
-                Set.of("example.com")
+                Set.of("example.com"),
+                false,
+                "", ""
         );
         DiscordOAuth oauth = new FakeOAuth();
         AtomicBoolean discordLinked = new AtomicBoolean(false);

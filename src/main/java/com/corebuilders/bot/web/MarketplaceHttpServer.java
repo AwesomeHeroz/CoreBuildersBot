@@ -113,9 +113,46 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         return server.getAddress().getPort();
     }
 
+    private boolean hasValidOriginHeader(HttpExchange exchange) {
+
+        if (!config.proxyCustomAuth()) {
+            return true;
+        }
+
+        List<String> values = exchange.getRequestHeaders()
+                .get(config.originHeaderName());
+
+        // Reject missing and duplicate headers.
+        if (values == null || values.size() != 1) {
+            return false;
+        }
+
+        String supplied = values.getFirst();
+        if (supplied == null || supplied.isBlank()) {
+            return false;
+        }
+
+        byte[] suppliedBytes = supplied.getBytes(StandardCharsets.UTF_8);
+        byte[] expectedBytes = config.originHeaderSecret()
+                .getBytes(StandardCharsets.UTF_8);
+
+        // Constant-time comparison.
+        return MessageDigest.isEqual(expectedBytes, suppliedBytes);
+    }
+
+    private static void sendAuthError(HttpExchange exchange)
+            throws IOException {
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.sendResponseHeaders(401, -1);
+    }
+
     private void handle(HttpExchange exchange) {
         try {
             applySecurityHeaders(exchange.getResponseHeaders());
+            if (!hasValidOriginHeader(exchange)) {
+                sendAuthError(exchange);
+                return;
+            }
             String path = normalizePath(exchange.getRequestURI().getPath());
             if (path.startsWith("/api/")) {
                 routeApi(exchange, path);

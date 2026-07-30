@@ -245,6 +245,10 @@ website:
   enabled: false
   # Bind loopback by default. A reverse proxy should terminate TLS and forward locally.
   bind-address: "127.0.0.1"
+  origin-auth: # custom auth header from proxy
+    enabled: false # default false
+    header-name: ""
+    secret: ''
   port: 8080
   # Public origin only, with no path, query, or fragment. Use HTTPS in production.
   public-base-url: "http://localhost:8080"

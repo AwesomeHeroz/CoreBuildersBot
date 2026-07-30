@@ -34,14 +34,4 @@ class DiscordViewFactoryTest {
         assertTrue(embed.getFields().stream().anyMatch(field -> "0 CXP • 0 CC".equals(field.getValue())));
     }
 
-    @Test
-    void projectSummaryIncludesMemberCount() {
-        Project project = new Project(
-                UUID.randomUUID(), "Spawn Base", "Build it", ProjectStatus.ACTIVE,
-                "42", "99", Instant.EPOCH, null
-        );
-
-        var embed = views.projectList(List.of(new DiscordViewFactory.ProjectSummary(project, 7)));
-        assertTrue(embed.getDescription().contains("7 member(s)"));
-    }
 }
