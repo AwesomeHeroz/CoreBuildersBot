@@ -8,7 +8,7 @@ description: Core Builders progression, economy, Minecraft integration, and Disc
 commands:
   core:
     description: Core Builders member commands.
-    usage: /core <profile|balance|leaderboard|link|unlink|help>
+    usage: /core <login|profile|balance|leaderboard|link|unlink|help>
     aliases: [corebuilders, cb]
 
 permissions:

@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DiscordOAuthHttpClientTest {
-    private static final String CALLBACK = "http://127.0.0.1/api/auth/callback";
+    private static final String CALLBACK = "http://127.0.0.1/api/account/discord/callback";
 
     private HttpServer server;
     private final AtomicBoolean includeGuild = new AtomicBoolean(true);

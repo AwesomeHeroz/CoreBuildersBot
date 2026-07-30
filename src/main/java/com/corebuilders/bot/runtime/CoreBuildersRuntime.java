@@ -10,6 +10,7 @@ import com.corebuilders.bot.config.ApplicationPanelConfig;
 import com.corebuilders.bot.db.QueryDslDatabase;
 import com.corebuilders.bot.model.RankCatalog;
 import com.corebuilders.bot.model.ShopCatalog;
+import com.corebuilders.bot.persistence.QueryDslWebLoginChallengeRepository;
 import com.corebuilders.bot.discord.ApplicationDiscordListener;
 import com.corebuilders.bot.discord.ApplicationPanelService;
 import com.corebuilders.bot.discord.CommandRegistrar;
@@ -60,6 +61,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
     private final MemberService memberService;
     private final AchievementService achievementService;
     private final LedgerService ledgerService;
+    private final WebLoginService webLoginService;
 
     private CoreBuildersRuntime(
             Logger logger,
@@ -73,7 +75,8 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             LinkService linkService,
             MemberService memberService,
             AchievementService achievementService,
-            LedgerService ledgerService
+            LedgerService ledgerService,
+            WebLoginService webLoginService
     ) {
         this.logger = logger;
         this.dataSource = dataSource;
@@ -87,6 +90,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         this.memberService = memberService;
         this.achievementService = achievementService;
         this.ledgerService = ledgerService;
+        this.webLoginService = webLoginService;
     }
 
     public static CoreBuildersRuntime start(JavaPlugin plugin) throws InterruptedException {
@@ -120,6 +124,10 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             plugin.getLogger().info("Shop catalog synchronized: " + shopSync.inserted() + " inserted, "
                     + shopSync.updated() + " updated, " + shopSync.disabled() + " disabled.");
             LinkService links = new LinkService(database);
+            WebLoginService webLogin = new WebLoginService(
+                    new QueryDslWebLoginChallengeRepository(database),
+                    java.time.Duration.ofMinutes(10)
+            );
             ApplicationConfig applicationConfig = new ApplicationConfig(plugin.getConfig());
             ApplicationService applications = new ApplicationService(
                     database, objectMapper, audit, applicationConfig.isPreventDuplicatePending()
@@ -211,7 +219,8 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                         websiteConfig,
                         objectMapper,
                         new DiscordOAuthHttpClient(websiteConfig, properties.getGuildId(), objectMapper),
-                        new CoreWebsiteIdentity(members, ledger),
+                        new CoreWebsiteIdentity(database, ledger),
+                        webLogin,
                         marketplace,
                         plugin.getLogger()
                 );
@@ -236,7 +245,8 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     links,
                     members,
                     achievements,
-                    ledger
+                    ledger,
+                    webLogin
             );
         } catch (Exception error) {
             if (websiteServer != null) {
@@ -286,6 +296,10 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
     public LedgerService ledgerService() {
         return ledgerService;
+    }
+
+    public WebLoginService webLoginService() {
+        return webLoginService;
     }
 
     @Override

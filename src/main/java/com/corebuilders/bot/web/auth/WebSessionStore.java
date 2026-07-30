@@ -29,7 +29,9 @@ public final class WebSessionStore {
         this.lifetime = Objects.requireNonNull(lifetime, "lifetime");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.random = Objects.requireNonNull(random, "random");
-        if (lifetime.isZero() || lifetime.isNegative()) throw new IllegalArgumentException("Session lifetime must be positive.");
+        if (lifetime.isZero() || lifetime.isNegative()) {
+            throw new IllegalArgumentException("Session lifetime must be positive.");
+        }
     }
 
     public Session create(SessionPrincipal principal) {
@@ -42,9 +44,13 @@ public final class WebSessionStore {
 
     public Optional<Session> find(String id) {
         cleanupOccasionally();
-        if (id == null || id.isBlank()) return Optional.empty();
+        if (id == null || id.isBlank()) {
+            return Optional.empty();
+        }
         Session session = sessions.get(id);
-        if (session == null) return Optional.empty();
+        if (session == null) {
+            return Optional.empty();
+        }
         if (!session.expiresAt().isAfter(clock.instant())) {
             sessions.remove(id, session);
             return Optional.empty();
@@ -52,8 +58,19 @@ public final class WebSessionStore {
         return Optional.of(session);
     }
 
+    public Optional<Session> replacePrincipal(String id, SessionPrincipal principal) {
+        Objects.requireNonNull(principal, "principal");
+        return find(id).map(current -> {
+            Session updated = new Session(current.id(), principal, current.csrfToken(), current.expiresAt());
+            sessions.replace(current.id(), current, updated);
+            return sessions.getOrDefault(current.id(), updated);
+        });
+    }
+
     public void destroy(String id) {
-        if (id != null) sessions.remove(id);
+        if (id != null) {
+            sessions.remove(id);
+        }
     }
 
     public void clear() {
@@ -61,7 +78,9 @@ public final class WebSessionStore {
     }
 
     private void cleanupOccasionally() {
-        if ((accesses.incrementAndGet() & 127L) != 0L) return;
+        if ((accesses.incrementAndGet() & 127L) != 0L) {
+            return;
+        }
         Instant now = clock.instant();
         sessions.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(now));
     }

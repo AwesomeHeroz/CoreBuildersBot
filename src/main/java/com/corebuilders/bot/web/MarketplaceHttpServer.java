@@ -4,6 +4,8 @@ import com.corebuilders.bot.config.WebsiteConfig;
 import com.corebuilders.bot.model.MarketplaceModels.*;
 import com.corebuilders.bot.service.MarketplaceException;
 import com.corebuilders.bot.service.MarketplaceOperations;
+import com.corebuilders.bot.service.WebLoginChallengeRepository;
+import com.corebuilders.bot.service.WebLoginService;
 import com.corebuilders.bot.web.auth.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.Headers;
@@ -43,6 +45,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     private final ObjectMapper mapper;
     private final DiscordOAuth oauth;
     private final WebsiteIdentity identity;
+    private final WebLoginService webLogin;
     private final MarketplaceOperations marketplace;
     private final Logger logger;
     private final WebSessionStore sessions;
@@ -50,6 +53,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     private final HttpServer server;
     private final ExecutorService executor;
 
+    @Deprecated
     public MarketplaceHttpServer(
             WebsiteConfig config,
             ObjectMapper mapper,
@@ -58,10 +62,23 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             MarketplaceOperations marketplace,
             Logger logger
     ) throws IOException {
+        this(config, mapper, oauth, identity, WebLoginService.disabled(), marketplace, logger);
+    }
+
+    public MarketplaceHttpServer(
+            WebsiteConfig config,
+            ObjectMapper mapper,
+            DiscordOAuth oauth,
+            WebsiteIdentity identity,
+            WebLoginService webLogin,
+            MarketplaceOperations marketplace,
+            Logger logger
+    ) throws IOException {
         this.config = config;
         this.mapper = mapper;
         this.oauth = oauth;
         this.identity = identity;
+        this.webLogin = webLogin;
         this.marketplace = marketplace;
         this.logger = logger;
         this.sessions = new WebSessionStore(config.sessionLifetime());
@@ -76,7 +93,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         server.start();
         logger.info("Marketplace website listening on " + config.bindAddress() + ":" + port()
                 + "; public URL " + config.publicBaseUrl());
-        logger.info("Discord OAuth redirect URI (register exactly, without a trailing slash): "
+        logger.info("Discord account-link OAuth redirect URI (register exactly, without a trailing slash): "
                 + config.oauthRedirectUri());
         if ("http".equalsIgnoreCase(config.publicBaseUrl().getScheme())) {
             logger.warning("Marketplace public URL uses HTTP. Prefer HTTPS for production and keep website.cookies.secure=false while using HTTP.");
@@ -125,12 +142,20 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             sendJson(exchange, 200, Map.of("status", "ok", "service", "core-builders-marketplace"));
             return;
         }
-        if (path.equals("/api/auth/login") && method.equals("GET")) {
-            startLogin(exchange);
+        if (path.equals("/api/auth/challenge") && method.equals("POST")) {
+            startMinecraftLogin(exchange);
             return;
         }
-        if (path.equals("/api/auth/callback") && method.equals("GET")) {
-            finishLogin(exchange);
+        if (path.equals("/api/auth/complete") && method.equals("POST")) {
+            completeMinecraftLogin(exchange);
+            return;
+        }
+        if (path.equals("/api/account/discord/link") && method.equals("GET")) {
+            startDiscordLink(exchange);
+            return;
+        }
+        if (path.equals("/api/account/discord/callback") && method.equals("GET")) {
+            finishDiscordLink(exchange);
             return;
         }
         if (path.equals("/api/auth/me") && method.equals("GET")) {
@@ -171,9 +196,21 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             sendJson(exchange, 200, new ShopPayload(shop, marketplace.shopItems(shopId)));
             return;
         }
+        if (path.equals("/api/auth/login") || path.equals("/api/auth/callback")) {
+            sendProblem(exchange, 404, "not_found", "Discord login is no longer available.");
+            return;
+        }
 
         WebSessionStore.Session session = requireSession(exchange);
         SessionPrincipal principal = session.principal();
+        if (requiresDiscordLink(path)
+                && (principal.discordUserId() == null || principal.discordUserId().isBlank())) {
+            throw new HttpStatusException(
+                    409,
+                    "discord_link_required",
+                    "Link Discord to unlock marketplace account features."
+            );
+        }
 
         if (path.equals("/api/me/shop") && method.equals("GET")) {
             Optional<PlayerShop> shop = marketplace.findShopByOwner(principal.memberId());
@@ -256,39 +293,69 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         sendProblem(exchange, 404, "not_found", "API endpoint not found.");
     }
 
-    private void startLogin(HttpExchange exchange) throws IOException {
-        String state = states.create();
+    private void startMinecraftLogin(HttpExchange exchange) throws IOException {
+        WebLoginService.StartChallenge challenge = webLogin.createChallenge();
+        sendJson(exchange, 201, challenge);
+    }
+
+    private void completeMinecraftLogin(HttpExchange exchange) throws IOException {
+        CompleteLoginRequest request = readJson(exchange, CompleteLoginRequest.class);
+        WebLoginChallengeRepository.CompletionResult result = webLogin.complete(request.challengeToken());
+        switch (result.status()) {
+            case PENDING -> sendJson(exchange, 202, Map.of("status", "pending"));
+            case COMPLETED -> {
+                SessionPrincipal principal = identity.requireProfile(result.memberId());
+                WebSessionStore.Session session = sessions.create(principal);
+                setCookie(exchange, SESSION_COOKIE, session.id(), config.sessionLifetime(), true);
+                sendJson(exchange, 200, Map.of("status", "completed"));
+            }
+            case INVALID -> throw new HttpStatusException(404, "invalid_challenge", "Login challenge not found.");
+            case EXPIRED -> throw new HttpStatusException(410, "expired_challenge", "Login challenge expired.");
+            case USED -> throw new HttpStatusException(409, "used_challenge", "Login challenge was already used.");
+            case INACTIVE -> throw new HttpStatusException(403, "inactive_profile", "Your Core Builders profile is inactive.");
+        }
+    }
+
+    private void startDiscordLink(HttpExchange exchange) throws IOException {
+        WebSessionStore.Session session = requireSession(exchange);
+        String state = states.create(session.id());
         setCookie(exchange, STATE_COOKIE, state, Duration.ofMinutes(10), true);
         redirect(exchange, oauth.authorizationUri(state));
     }
 
-    private void finishLogin(HttpExchange exchange) throws IOException {
+    private void finishDiscordLink(HttpExchange exchange) throws IOException {
         Map<String, String> query = query(exchange.getRequestURI());
-        String providerError = query.get("error");
-        if (providerError != null) {
-            clearCookie(exchange, STATE_COOKIE);
-            redirect(exchange, siteUri("/?login=error&code=" + encode(providerError)));
-            return;
-        }
+        Optional<WebSessionStore.Session> current = optionalSession(exchange);
         String state = query.get("state");
         String stateCookie = cookie(exchange, STATE_COOKIE).orElse(null);
-        if (state == null || stateCookie == null || !constantTimeEquals(state, stateCookie) || !states.consume(state)) {
-            clearCookie(exchange, STATE_COOKIE);
-            redirect(exchange, siteUri("/?login=error&code=invalid_state"));
+        boolean validState = current.isPresent()
+                && state != null
+                && stateCookie != null
+                && constantTimeEquals(state, stateCookie)
+                && states.consume(state, current.get().id());
+        clearCookie(exchange, STATE_COOKIE);
+        if (!validState) {
+            redirect(exchange, siteUri("/?discord=error&code=invalid_state"));
             return;
         }
-        clearCookie(exchange, STATE_COOKIE);
+
+        String providerError = query.get("error");
+        if (providerError != null) {
+            redirect(exchange, siteUri("/?discord=error&code=" + encode(providerError)));
+            return;
+        }
+
         try {
             DiscordIdentity discord = oauth.exchange(query.get("code"));
-            SessionPrincipal principal = identity.ensureProfile(discord);
-            WebSessionStore.Session session = sessions.create(principal);
-            setCookie(exchange, SESSION_COOKIE, session.id(), config.sessionLifetime(), true);
-            redirect(exchange, siteUri("/?login=success"));
+            SessionPrincipal principal = identity.linkDiscord(current.get().principal().memberId(), discord);
+            sessions.replacePrincipal(current.get().id(), principal);
+            redirect(exchange, siteUri("/?discord=linked"));
         } catch (OAuthException error) {
-            redirect(exchange, siteUri("/?login=error&code=" + encode(error.code().name().toLowerCase(Locale.ROOT))));
+            redirect(exchange, siteUri("/?discord=error&code="
+                    + encode(error.code().name().toLowerCase(Locale.ROOT))));
         } catch (IllegalStateException error) {
-            logger.log(Level.WARNING, "Discord login profile could not be activated", error);
-            redirect(exchange, siteUri("/?login=error&code=profile_unavailable"));
+            logger.log(Level.WARNING, "Discord account could not be linked", error);
+            redirect(exchange, siteUri("/?discord=error&code=link_conflict"));
         }
     }
 
@@ -304,7 +371,8 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     }
 
     private WebSessionStore.Session requireSession(HttpExchange exchange) {
-        return optionalSession(exchange).orElseThrow(() -> new HttpStatusException(401, "unauthorized", "Log in with Discord first."));
+        return optionalSession(exchange).orElseThrow(() -> new HttpStatusException(
+                401, "unauthorized", "Log in through Minecraft first."));
     }
 
     private Optional<WebSessionStore.Session> optionalSession(HttpExchange exchange) {
@@ -469,6 +537,17 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         }
     }
 
+    private static boolean requiresDiscordLink(String path) {
+        return path.equals("/api/me/shop")
+                || path.startsWith("/api/me/shop/")
+                || path.equals("/api/cart")
+                || path.startsWith("/api/cart/")
+                || path.equals("/api/orders")
+                || path.startsWith("/api/orders/")
+                || path.equals("/api/sales")
+                || path.startsWith("/api/sales/");
+    }
+
     private static List<String> pathParts(String path) {
         if (path.equals("/")) return List.of();
         return Arrays.stream(path.substring(1).split("/"))
@@ -533,6 +612,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     }
 
     private record QuantityRequest(int quantity) {}
+    private record CompleteLoginRequest(String challengeToken) {}
     private record ShopPayload(PlayerShop shop, List<MarketplaceItem> items) {}
     private record MePayload(boolean authenticated, SessionPrincipal user, long balance, String csrfToken) {}
     private record Problem(String code, String message) {}

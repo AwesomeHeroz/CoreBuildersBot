@@ -79,12 +79,64 @@ async function loadMe() {
   renderAuthenticatedVisibility();
 }
 
+async function startMinecraftLogin() {
+  const dialog = element('dialog', 'minecraft-login-dialog');
+  const panel = element('div', 'minecraft-login-panel');
+  panel.append(element('h2', '', 'Verify login in Minecraft'));
+  const status = element('p', 'muted', 'Creating a one-time login code…');
+  const code = element('div', 'minecraft-login-code', '--------');
+  const command = element('code', 'minecraft-login-command', '');
+  const instructions = element(
+    'p',
+    '',
+    'Join the Minecraft server with the account you want to use, then run this command in chat.'
+  );
+  const cancel = element('button', 'button ghost', 'Cancel');
+  cancel.type = 'button';
+  cancel.addEventListener('click', () => dialog.close());
+  panel.append(status, code, command, instructions, cancel);
+  dialog.append(panel);
+  document.body.append(dialog);
+  dialog.addEventListener('close', () => dialog.remove(), { once: true });
+  dialog.showModal();
+
+  try {
+    const challenge = await api('/api/auth/challenge', { method: 'POST' });
+    if (!dialog.isConnected) return;
+    code.textContent = challenge.code;
+    command.textContent = challenge.command;
+    status.textContent = 'Waiting for verification from the game…';
+
+    while (dialog.isConnected && dialog.open) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      if (!dialog.isConnected || !dialog.open) return;
+      const result = await api('/api/auth/complete', {
+        method: 'POST',
+        body: { challengeToken: challenge.challengeToken }
+      });
+      if (result.status === 'completed') {
+        dialog.close();
+        await loadMe();
+        if (state.me?.discordUserId) await loadCart();
+        notify(state.me?.discordUserId
+          ? 'Minecraft login successful.'
+          : 'Minecraft login successful. Link Discord to unlock marketplace account features.');
+        return;
+      }
+    }
+  } catch (error) {
+    if (dialog.isConnected) dialog.close();
+    notify(error.message, true);
+  }
+}
+
 function renderAuth(balance) {
   const area = $('#auth-area');
   area.replaceChildren();
   if (!state.me) {
-    const login = element('a', 'button discord', 'Log in with Discord');
-    login.href = '/api/auth/login';
+    const login = element('button', 'button primary', 'Log in through Minecraft');
+    login.type = 'button';
+    login.addEventListener('click', startMinecraftLogin);
     area.append(login);
     return;
   }
@@ -110,11 +162,17 @@ function renderAuth(balance) {
       showSection('marketplace');
     } catch (error) { notify(error.message, true); }
   });
-  area.append(chip, logout);
+  area.append(chip);
+  if (!state.me.discordUserId) {
+    const linkDiscord = element('a', 'button discord', 'Link Discord');
+    linkDiscord.href = '/api/account/discord/link';
+    area.append(linkDiscord);
+  }
+  area.append(logout);
 }
 
 function renderAuthenticatedVisibility() {
-  const authenticated = Boolean(state.me);
+  const authenticated = Boolean(state.me?.discordUserId);
   $('#shop-guest').classList.toggle('hidden', authenticated);
   $('#shop-dashboard').classList.toggle('hidden', !authenticated);
   $('#cart-guest').classList.toggle('hidden', authenticated);
@@ -187,8 +245,15 @@ function itemCard(item) {
   const add = element('button', 'button primary', item.stock > 0 ? 'Add to cart' : 'Out of stock');
   add.type = 'button';
   const own = state.me && state.me.memberId === item.sellerMemberId;
-  add.disabled = !state.me || item.stock <= 0 || own;
-  add.title = !state.me ? 'Log in to buy' : own ? 'You cannot buy from your own shop' : '';
+  const marketplaceAccountReady = Boolean(state.me?.discordUserId);
+  add.disabled = !marketplaceAccountReady || item.stock <= 0 || own;
+  add.title = !state.me
+    ? 'Log in through Minecraft to buy'
+    : !state.me.discordUserId
+      ? 'Link Discord to buy'
+      : own
+        ? 'You cannot buy from your own shop'
+        : '';
   add.addEventListener('click', () => addToCart(item));
   footer.append(add);
   body.append(footer);
@@ -207,7 +272,7 @@ async function addToCart(item) {
 }
 
 async function loadShop() {
-  if (!state.me) return;
+  if (!state.me?.discordUserId) return;
   const data = await api('/api/me/shop');
   state.shop = data.shop || null;
   state.myItems = data.items || [];
@@ -215,7 +280,7 @@ async function loadShop() {
 }
 
 function renderShop() {
-  if (!state.me) return;
+  if (!state.me?.discordUserId) return;
   const status = $('#shop-status');
   $('#item-form').classList.toggle('hidden', !state.shop);
   if (state.shop) {
@@ -293,7 +358,7 @@ async function deactivateItem(item) {
 }
 
 async function loadCart() {
-  if (!state.me) return;
+  if (!state.me?.discordUserId) return;
   state.cart = await api('/api/cart');
   renderCart();
 }
@@ -301,7 +366,7 @@ async function loadCart() {
 function renderCart() {
   const count = state.cart?.itemCount || 0;
   $('#cart-count').textContent = String(count);
-  if (!state.me) return;
+  if (!state.me?.discordUserId) return;
   const list = $('#cart-items');
   list.replaceChildren();
   $('#cart-total').textContent = points(state.cart?.total || 0);
@@ -361,7 +426,7 @@ async function checkout() {
 }
 
 async function loadOrders() {
-  if (!state.me) return;
+  if (!state.me?.discordUserId) return;
   const data = await api('/api/orders?limit=25');
   renderOrders(data.orders || []);
 }
@@ -396,7 +461,7 @@ function renderOrders(orders) {
 }
 
 async function loadSales() {
-  if (!state.me) return;
+  if (!state.me?.discordUserId) return;
   const data = await api('/api/sales?limit=50');
   renderSales(data.sales || []);
 }
@@ -493,14 +558,14 @@ function bindEvents() {
 
 function handleLoginResult() {
   const url = new URL(window.location.href);
-  const result = url.searchParams.get('login');
+  const result = url.searchParams.get('discord');
   if (!result) return;
-  if (result === 'success') notify('Discord login successful.');
+  if (result === 'linked') notify('Discord account linked successfully.');
   else {
-    const code = url.searchParams.get('code') || 'login_failed';
-    notify(`Discord login failed: ${code.replaceAll('_', ' ')}`, true);
+    const code = url.searchParams.get('code') || 'link_failed';
+    notify(`Discord linking failed: ${code.replaceAll('_', ' ')}`, true);
   }
-  url.searchParams.delete('login');
+  url.searchParams.delete('discord');
   url.searchParams.delete('code');
   window.history.replaceState(null, '', url.pathname + url.hash);
 }
@@ -511,7 +576,7 @@ async function bootstrap() {
   try {
     await loadMe();
     await Promise.all([loadCategories(), loadItems()]);
-    if (state.me) await loadCart();
+    if (state.me?.discordUserId) await loadCart();
     const initial = window.location.hash.slice(1);
     showSection(['marketplace', 'shop', 'cart', 'orders', 'sales'].includes(initial) ? initial : 'marketplace');
   } catch (error) {

@@ -246,7 +246,7 @@ website:
   discord-oauth:
     client-id: "" # Prefer COREBOT_DISCORD_OAUTH_CLIENT_ID
     client-secret: "" # Prefer COREBOT_DISCORD_OAUTH_CLIENT_SECRET
-    # Leave blank to use <public-base-url>/api/auth/callback.
+    # Leave blank to use <public-base-url>/api/account/discord/callback.
     redirect-uri: "" # Prefer COREBOT_DISCORD_OAUTH_REDIRECT_URI
     require-guild-membership: true
 

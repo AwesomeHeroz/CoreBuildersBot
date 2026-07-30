@@ -16,7 +16,7 @@ class WebsiteConfigTest {
 
         assertFalse(config.enabled());
         assertEquals(8080, config.port());
-        assertEquals("http://localhost:8080/api/auth/callback", config.oauthRedirectUri().toString());
+        assertEquals("http://localhost:8080/api/account/discord/callback", config.oauthRedirectUri().toString());
     }
 
     @Test
@@ -27,7 +27,7 @@ class WebsiteConfigTest {
 
         assertTrue(config.enabled());
         assertEquals("https://shop.example.com", config.publicBaseUrl().toString());
-        assertEquals("https://shop.example.com/api/auth/callback", config.oauthRedirectUri().toString());
+        assertEquals("https://shop.example.com/api/account/discord/callback", config.oauthRedirectUri().toString());
         assertTrue(config.secureCookies());
     }
 
@@ -38,7 +38,7 @@ class WebsiteConfigTest {
         WebsiteConfig config = WebsiteConfig.from(yaml);
 
         assertEquals("https://shop.example.com", config.publicBaseUrl().toString());
-        assertEquals("https://shop.example.com/api/auth/callback", config.oauthRedirectUri().toString());
+        assertEquals("https://shop.example.com/api/account/discord/callback", config.oauthRedirectUri().toString());
     }
 
     @Test
@@ -47,34 +47,34 @@ class WebsiteConfigTest {
 
         WebsiteConfig config = WebsiteConfig.from(yaml);
 
-        assertEquals("http://localhost:9000/api/auth/callback", config.oauthRedirectUri().toString());
+        assertEquals("http://localhost:9000/api/account/discord/callback", config.oauthRedirectUri().toString());
         assertFalse(config.secureCookies());
     }
 
     @Test
     void acceptsLegacyRedirectOnlyWhenItExactlyMatchesCanonicalCallback() {
         YamlConfiguration yaml = enabled("https://shop.example.com", true);
-        yaml.set("website.discord-oauth.redirect-uri", "https://shop.example.com/api/auth/callback");
+        yaml.set("website.discord-oauth.redirect-uri", "https://shop.example.com/api/account/discord/callback");
 
         WebsiteConfig config = WebsiteConfig.from(yaml);
 
-        assertEquals("https://shop.example.com/api/auth/callback", config.oauthRedirectUri().toString());
+        assertEquals("https://shop.example.com/api/account/discord/callback", config.oauthRedirectUri().toString());
     }
 
     @Test
     void rejectsMismatchedLegacyRedirect() {
         YamlConfiguration yaml = enabled("https://shop.example.com", true);
-        yaml.set("website.discord-oauth.redirect-uri", "https://other.example.com/api/auth/callback");
+        yaml.set("website.discord-oauth.redirect-uri", "https://other.example.com/api/account/discord/callback");
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
 
-        assertTrue(error.getMessage().contains("must exactly match https://shop.example.com/api/auth/callback"));
+        assertTrue(error.getMessage().contains("must exactly match https://shop.example.com/api/account/discord/callback"));
     }
 
     @Test
     void rejectsCallbackWithTrailingSlash() {
         YamlConfiguration yaml = enabled("https://shop.example.com", true);
-        yaml.set("website.discord-oauth.redirect-uri", "https://shop.example.com/api/auth/callback/");
+        yaml.set("website.discord-oauth.redirect-uri", "https://shop.example.com/api/account/discord/callback/");
 
         assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
     }
@@ -101,7 +101,7 @@ class WebsiteConfigTest {
 
         WebsiteConfig config = WebsiteConfig.from(yaml);
 
-        assertEquals("http://203.0.113.10:8080/api/auth/callback", config.oauthRedirectUri().toString());
+        assertEquals("http://203.0.113.10:8080/api/account/discord/callback", config.oauthRedirectUri().toString());
     }
 
     @Test

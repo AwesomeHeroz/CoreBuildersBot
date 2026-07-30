@@ -121,3 +121,38 @@ footer { padding: 30px; text-align: center; color: var(--muted); border-top: 1px
   .cart-row { grid-template-columns: 54px 1fr; }
   .quantity-control, .cart-row > strong { grid-column: 2; }
 }
+
+.minecraft-login-dialog {
+  width: min(92vw, 520px);
+  border: 0;
+  border-radius: 18px;
+  padding: 0;
+  color: var(--text);
+  background: var(--surface);
+}
+.minecraft-login-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.68);
+}
+.minecraft-login-panel {
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+}
+.minecraft-login-panel h2,
+.minecraft-login-panel p {
+  margin: 0;
+}
+.minecraft-login-code {
+  font-size: clamp(2rem, 9vw, 3.25rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+.minecraft-login-command {
+  display: block;
+  overflow-wrap: anywhere;
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--bg);
+  text-align: center;
+}

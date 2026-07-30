@@ -6,7 +6,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Locale;
 
-/** Validated configuration for the embedded marketplace website and Discord OAuth login. */
+/** Validated configuration for the embedded marketplace website and optional Discord account linking. */
 public record WebsiteConfig(
         boolean enabled,
         String bindAddress,
@@ -21,7 +21,7 @@ public record WebsiteConfig(
         int maxRequestBytes,
         int workerThreads
 ) {
-    public static final String OAUTH_CALLBACK_PATH = "/api/auth/callback";
+    public static final String OAUTH_CALLBACK_PATH = "/api/account/discord/callback";
 
     public static WebsiteConfig from(FileConfiguration config) {
         boolean enabled = config.getBoolean("website.enabled", false);

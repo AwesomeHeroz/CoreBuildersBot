@@ -28,7 +28,8 @@ public final class CoreBuildersPlugin extends JavaPlugin {
                     runtime.linkService(),
                     runtime.memberService(),
                     runtime.achievementService(),
-                    runtime.ledgerService()
+                    runtime.ledgerService(),
+                    runtime.webLoginService()
             );
 
             PluginCommand command = getCommand("core");

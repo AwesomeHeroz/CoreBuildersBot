@@ -3,6 +3,8 @@ package com.corebuilders.bot.web;
 import com.corebuilders.bot.config.WebsiteConfig;
 import com.corebuilders.bot.model.MarketplaceModels.*;
 import com.corebuilders.bot.service.MarketplaceOperations;
+import com.corebuilders.bot.service.WebLoginChallengeRepository;
+import com.corebuilders.bot.service.WebLoginService;
 import com.corebuilders.bot.web.auth.DiscordIdentity;
 import com.corebuilders.bot.web.auth.DiscordOAuth;
 import com.corebuilders.bot.web.auth.SessionPrincipal;
@@ -45,6 +47,7 @@ class MarketplaceHttpServerTest {
             .build();
 
     private FakeMarketplace marketplace;
+    private FakeLoginRepository loginRepository;
     private MarketplaceHttpServer server;
     private URI baseUri;
 
@@ -58,7 +61,7 @@ class MarketplaceHttpServerTest {
                 URI.create("http://127.0.0.1"),
                 "123456789012345678",
                 "secret",
-                URI.create("http://127.0.0.1/api/auth/callback"),
+                URI.create("http://127.0.0.1/api/account/discord/callback"),
                 false,
                 false,
                 Duration.ofHours(1),
@@ -73,12 +76,27 @@ class MarketplaceHttpServerTest {
             }
 
             @Override
+            public SessionPrincipal requireProfile(UUID memberId) {
+                assertEquals(MEMBER_ID, memberId);
+                return new SessionPrincipal(MEMBER_ID, null, "Builder", null);
+            }
+
+            @Override
+            public SessionPrincipal linkDiscord(UUID memberId, DiscordIdentity discord) {
+                assertEquals(MEMBER_ID, memberId);
+                return new SessionPrincipal(MEMBER_ID, discord.id(), discord.displayName(), discord.avatarUrl());
+            }
+
+            @Override
             public long contributionPointBalance(UUID memberId) {
                 assertEquals(MEMBER_ID, memberId);
                 return 1_000L;
             }
         };
-        server = new MarketplaceHttpServer(config, mapper, oauth, identity, marketplace, Logger.getAnonymousLogger());
+        loginRepository = new FakeLoginRepository();
+        WebLoginService webLogin = new WebLoginService(loginRepository, Duration.ofMinutes(10));
+        server = new MarketplaceHttpServer(
+                config, mapper, oauth, identity, webLogin, marketplace, Logger.getAnonymousLogger());
         server.start();
         baseUri = URI.create("http://127.0.0.1:" + server.port());
     }
@@ -123,6 +141,16 @@ class MarketplaceHttpServerTest {
         Response me = request("GET", "/api/auth/me", login.sessionCookie(), null, null);
         assertTrue(me.json().path("authenticated").asBoolean());
         assertEquals(1_000L, me.json().path("balance").asLong());
+
+        Response blockedUntilDiscordLink = request("GET", "/api/cart", login.sessionCookie(), null, null);
+        assertEquals(409, blockedUntilDiscordLink.status());
+        assertEquals("discord_link_required",
+                blockedUntilDiscordLink.json().path("error").path("code").asText());
+
+        linkDiscord(login);
+        Response linkedMe = request("GET", "/api/auth/me", login.sessionCookie(), null, null);
+        assertEquals("123456789012345678",
+                linkedMe.json().path("user").path("discordUserId").asText());
 
         Response missingCsrf = request("POST", "/api/me/shop", login.sessionCookie(), null,
                 "{\"name\":\"Builder Shop\",\"description\":\"Tools\"}");
@@ -213,12 +241,15 @@ class MarketplaceHttpServerTest {
         assertEquals(404, request("GET", "/api/items/00000000-0000-0000-0000-000000000099", null, null, null).status());
         assertEquals(400, request("GET", "/api/items/not-a-uuid", null, null, null).status());
 
-        Response invalidState = request("GET", "/api/auth/callback?code=valid-code&state=wrong",
-                "core_oauth_state=wrong", null, null);
+        assertEquals(404, request("GET", "/api/auth/login", null, null, null).status());
+        Login login = login();
+        Response invalidState = request(
+                "GET", "/api/account/discord/callback?code=valid-code&state=wrong",
+                login.sessionCookie() + "; core_oauth_state=wrong", null, null);
         assertEquals(302, invalidState.status());
         assertTrue(invalidState.headers().firstValue("Location").orElseThrow().contains("invalid_state"));
 
-        Login login = login();
+        linkDiscord(login);
         HttpRequest badContentType = HttpRequest.newBuilder(baseUri.resolve("/api/me/shop"))
                 .header("Cookie", login.sessionCookie())
                 .header("X-CSRF-Token", login.csrfToken())
@@ -230,21 +261,40 @@ class MarketplaceHttpServerTest {
     }
 
     private Login login() throws Exception {
-        Response login = request("GET", "/api/auth/login", null, null, null);
-        assertEquals(302, login.status());
-        String state = cookieValue(login.headers(), "core_oauth_state");
-        assertFalse(state.isBlank());
-        assertTrue(login.headers().firstValue("Location").orElseThrow().contains("state=" + state));
+        Response challenge = request("POST", "/api/auth/challenge", null, null, null);
+        assertEquals(201, challenge.status());
+        String challengeToken = challenge.json().path("challengeToken").asText();
+        assertFalse(challengeToken.isBlank());
+        assertTrue(challenge.json().path("command").asText().startsWith("/core login "));
 
-        Response callback = request("GET", "/api/auth/callback?code=valid-code&state=" + state,
-                "core_oauth_state=" + state, null, null);
-        assertEquals(302, callback.status());
-        assertTrue(callback.headers().firstValue("Location").orElseThrow().contains("login=success"));
-        String session = cookieValue(callback.headers(), "core_session");
+        String completionBody = "{\"challengeToken\":\"" + challengeToken + "\"}";
+        Response pending = request("POST", "/api/auth/complete", null, null, completionBody);
+        assertEquals(202, pending.status());
+        assertEquals("pending", pending.json().path("status").asText());
+
+        loginRepository.verifyLatest();
+        Response completed = request("POST", "/api/auth/complete", null, null, completionBody);
+        assertEquals(200, completed.status());
+        assertEquals("completed", completed.json().path("status").asText());
+        String session = cookieValue(completed.headers(), "core_session");
         assertFalse(session.isBlank());
 
         Response me = request("GET", "/api/auth/me", "core_session=" + session, null, null);
         return new Login("core_session=" + session, me.json().path("csrfToken").asText());
+    }
+
+    private void linkDiscord(Login login) throws Exception {
+        Response start = request("GET", "/api/account/discord/link", login.sessionCookie(), null, null);
+        assertEquals(302, start.status());
+        String state = cookieValue(start.headers(), "core_oauth_state");
+        assertFalse(state.isBlank());
+        assertTrue(start.headers().firstValue("Location").orElseThrow().contains("state=" + state));
+
+        Response callback = request(
+                "GET", "/api/account/discord/callback?code=valid-code&state=" + state,
+                login.sessionCookie() + "; core_oauth_state=" + state, null, null);
+        assertEquals(302, callback.status());
+        assertTrue(callback.headers().firstValue("Location").orElseThrow().contains("discord=linked"));
     }
 
     private Response request(String method, String path, String cookie, String csrf, String json) throws Exception {
@@ -276,6 +326,53 @@ class MarketplaceHttpServerTest {
 
     private record Login(String sessionCookie, String csrfToken) {}
     private record Response(int status, java.net.http.HttpHeaders headers, JsonNode json) {}
+
+    private static final class FakeLoginRepository implements WebLoginChallengeRepository {
+        private NewChallenge challenge;
+        private boolean verified;
+        private boolean consumed;
+
+        @Override
+        public void create(NewChallenge challenge) {
+            this.challenge = challenge;
+            this.verified = false;
+            this.consumed = false;
+        }
+
+        @Override
+        public VerificationResult verify(
+                String verificationCodeHash,
+                UUID minecraftUuid,
+                String minecraftName,
+                Instant now
+        ) {
+            if (challenge == null || !challenge.verificationCodeHash().equals(verificationCodeHash)) {
+                return new VerificationResult(VerificationStatus.INVALID, null);
+            }
+            verified = true;
+            return new VerificationResult(VerificationStatus.VERIFIED, MEMBER_ID);
+        }
+
+        @Override
+        public CompletionResult complete(String browserTokenHash, Instant now) {
+            if (challenge == null || !challenge.browserTokenHash().equals(browserTokenHash)) {
+                return new CompletionResult(CompletionStatus.INVALID, null);
+            }
+            if (consumed) {
+                return new CompletionResult(CompletionStatus.USED, MEMBER_ID);
+            }
+            if (!verified) {
+                return new CompletionResult(CompletionStatus.PENDING, null);
+            }
+            consumed = true;
+            return new CompletionResult(CompletionStatus.COMPLETED, MEMBER_ID);
+        }
+
+        void verifyLatest() {
+            assertNotNull(challenge);
+            verified = true;
+        }
+    }
 
     private static final class FakeOAuth implements DiscordOAuth {
         @Override

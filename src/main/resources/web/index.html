@@ -22,7 +22,7 @@
       <button class="nav-link" data-section="sales">Sales</button>
     </nav>
     <div id="auth-area" class="auth-area">
-      <a class="button discord" href="/api/auth/login">Log in with Discord</a>
+      <button class="button primary" type="button" disabled>Loading…</button>
     </div>
   </header>
 
@@ -79,7 +79,7 @@
       <div class="section-heading">
         <div><p class="eyebrow">One shop per player</p><h1 id="shop-title">My Shop</h1></div>
       </div>
-      <div id="shop-guest" class="empty-state">Log in with Discord to create and manage your shop.</div>
+      <div id="shop-guest" class="empty-state">Log in through Minecraft and link Discord to create and manage your shop.</div>
       <div id="shop-dashboard" class="hidden">
         <div class="dashboard-grid">
           <form id="shop-form" class="panel form-panel">
@@ -114,7 +114,7 @@
 
     <section id="cart" class="view" aria-labelledby="cart-title">
       <div class="section-heading"><div><p class="eyebrow">Review before purchase</p><h1 id="cart-title">Your Cart</h1></div></div>
-      <div id="cart-guest" class="empty-state">Log in with Discord to use your cart.</div>
+      <div id="cart-guest" class="empty-state">Log in through Minecraft and link Discord to use your cart.</div>
       <div id="cart-panel" class="panel hidden">
         <div id="cart-items" class="cart-list"></div>
         <div class="cart-summary">
@@ -126,13 +126,13 @@
 
     <section id="orders" class="view" aria-labelledby="orders-title">
       <div class="section-heading"><div><p class="eyebrow">Purchase history</p><h1 id="orders-title">Your Orders</h1></div></div>
-      <div id="orders-guest" class="empty-state">Log in with Discord to view purchases.</div>
+      <div id="orders-guest" class="empty-state">Log in through Minecraft and link Discord to view purchases.</div>
       <div id="orders-list" class="stack hidden"></div>
     </section>
 
     <section id="sales" class="view" aria-labelledby="sales-title">
       <div class="section-heading"><div><p class="eyebrow">Fulfil customer orders</p><h1 id="sales-title">Your Sales</h1></div></div>
-      <div id="sales-guest" class="empty-state">Log in with Discord to view sales.</div>
+      <div id="sales-guest" class="empty-state">Log in through Minecraft and link Discord to view sales.</div>
       <div id="sales-list" class="stack hidden"></div>
     </section>
   </main>
