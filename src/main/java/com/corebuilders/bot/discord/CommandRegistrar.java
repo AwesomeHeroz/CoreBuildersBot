@@ -108,6 +108,8 @@ public final class CommandRegistrar {
                         new SubcommandData("achievements", "Show unlocked achievements.")
                                 .addOption(OptionType.USER, "member", "Member to view.", false),
                         new SubcommandData("link", "Generate a one-time code to link your Minecraft account."),
+                        new SubcommandData("web-login", "Verify a one-time website login code through Discord.")
+                                .addOption(OptionType.STRING, "code", "Code shown on the Core Builders website.", true),
                         new SubcommandData("transactions", "Show recent CXP and Core Credit transactions.")
                                 .addOption(OptionType.USER, "member", "Member to view; staff only for other users.", false)
                                 .addOption(OptionType.INTEGER, "limit", "Number of transactions, 1-25.", false),

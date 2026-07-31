@@ -80,7 +80,7 @@
       <div class="section-heading">
         <div><p class="eyebrow">One shop per player</p><h1 id="shop-title">My Shop</h1></div>
       </div>
-      <div id="shop-guest" class="empty-state">Log in through Minecraft and link Discord to create and manage your shop.</div>
+      <div id="shop-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to manage your shop.</div>
       <div id="shop-dashboard" class="hidden">
         <div class="dashboard-grid">
           <form id="shop-form" class="panel form-panel">
@@ -115,7 +115,7 @@
 
     <section id="cart" class="view" aria-labelledby="cart-title">
       <div class="section-heading"><div><p class="eyebrow">Review before purchase</p><h1 id="cart-title">Your Cart</h1></div></div>
-      <div id="cart-guest" class="empty-state">Log in through Minecraft and link Discord to use your cart.</div>
+      <div id="cart-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to use your cart.</div>
       <div id="cart-panel" class="panel hidden">
         <div id="cart-items" class="cart-list"></div>
         <div class="cart-summary">
@@ -127,13 +127,13 @@
 
     <section id="orders" class="view" aria-labelledby="orders-title">
       <div class="section-heading"><div><p class="eyebrow">Purchase history</p><h1 id="orders-title">Your Orders</h1></div></div>
-      <div id="orders-guest" class="empty-state">Log in through Minecraft and link Discord to view purchases.</div>
+      <div id="orders-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to view purchases.</div>
       <div id="orders-list" class="stack hidden"></div>
     </section>
 
     <section id="sales" class="view" aria-labelledby="sales-title">
       <div class="section-heading"><div><p class="eyebrow">Fulfil customer orders</p><h1 id="sales-title">Your Sales</h1></div></div>
-      <div id="sales-guest" class="empty-state">Log in through Minecraft and link Discord to view sales.</div>
+      <div id="sales-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to view sales.</div>
       <div id="sales-list" class="stack hidden"></div>
     </section>
   </main>
@@ -148,10 +148,10 @@
       <div id="minecraft-login-challenge" class="minecraft-login-challenge">
         <div id="minecraft-login-code" class="minecraft-login-code">--------</div>
         <code id="minecraft-login-command" class="minecraft-login-command"></code>
-        <p>Join the Minecraft server with the account you want to use, then run this command in chat.</p>
+        <p id="minecraft-login-instructions">Run this command using the account you want to use.</p>
       </div>
       <div id="minecraft-login-account" class="verified-account hidden">
-        <span class="muted">Verified Minecraft account</span>
+        <span id="minecraft-login-account-label" class="muted">Verified account</span>
         <strong id="minecraft-login-name"></strong>
         <p>Continue only if this is the account you intended to use.</p>
       </div>

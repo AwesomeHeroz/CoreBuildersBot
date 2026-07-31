@@ -25,4 +25,17 @@ class MarketplaceMigrationTest {
             assertTrue(sql.contains("idx_marketplace_line_dispute_queue"));
         }
     }
+
+    @Test
+    void discordBotLoginMigrationStoresOnlyHashedOneTimeSecrets() throws IOException {
+        try (var input = getClass().getResourceAsStream("/db/migration/V9__discord_bot_web_login.sql")) {
+            assertNotNull(input);
+            String sql = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(sql.contains("discord_web_login_challenges"));
+            assertTrue(sql.contains("browser_token_hash CHAR(64)"));
+            assertTrue(sql.contains("verification_code_hash CHAR(64)"));
+            assertTrue(sql.contains("consumed_at TIMESTAMP(6)"));
+            assertTrue(sql.contains("FOREIGN KEY (member_id) REFERENCES members(id)"));
+        }
+    }
 }

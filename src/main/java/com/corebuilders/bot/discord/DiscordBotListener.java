@@ -44,12 +44,14 @@ public final class DiscordBotListener extends ListenerAdapter {
     private final MarketplaceDisputeOperations marketplaceDisputes;
     private final AuditService audit;
     private final LinkService links;
+    private final DiscordWebLoginService discordWebLogin;
     private final PermissionService permissions;
     private final RankRoleService rankRoles;
     private final DiscordNotifier notifier;
     private final BotProperties properties;
     private final NewPlayersProvider newPlayersProvider;
     private final RequestRateLimiter newPlayersRateLimiter;
+    private final RequestRateLimiter discordWebLoginRateLimiter;
     private final DiscordCommandRouter<SlashCommandInteractionEvent, MessageEmbed> commandRouter;
     private final TextCommandParser textCommandParser;
     private final NewPlayersEmbedFactory newPlayersEmbedFactory = new NewPlayersEmbedFactory();
@@ -68,6 +70,7 @@ public final class DiscordBotListener extends ListenerAdapter {
             MarketplaceDisputeOperations marketplaceDisputes,
             AuditService audit,
             LinkService links,
+            DiscordWebLoginService discordWebLogin,
             PermissionService permissions,
             RankRoleService rankRoles,
             DiscordNotifier notifier,
@@ -84,11 +87,17 @@ public final class DiscordBotListener extends ListenerAdapter {
         this.marketplaceDisputes = Objects.requireNonNull(marketplaceDisputes, "marketplaceDisputes");
         this.audit = audit;
         this.links = links;
+        this.discordWebLogin = Objects.requireNonNull(discordWebLogin, "discordWebLogin");
         this.permissions = permissions;
         this.rankRoles = rankRoles;
         this.notifier = notifier;
         this.properties = properties;
         this.newPlayersProvider = Objects.requireNonNull(newPlayersProvider, "newPlayersProvider");
+        this.discordWebLoginRateLimiter = new RequestRateLimiter(
+                java.time.Duration.ofSeconds(3),
+                120,
+                java.time.Duration.ofMinutes(1)
+        );
         this.newPlayersRateLimiter = new RequestRateLimiter(
                 java.time.Duration.ofSeconds(properties.getHyperglidingUserCooldownSeconds()),
                 properties.getHyperglidingGlobalRequestsPerMinute(),
@@ -254,6 +263,7 @@ public final class DiscordBotListener extends ListenerAdapter {
             case "leaderboard" -> leaderboard(event);
             case "achievements" -> achievementList(event);
             case "link" -> linkMinecraft(event);
+            case "web-login" -> verifyWebsiteLogin(event);
             case "transactions" -> transactions(event);
             case "stats" -> stats(event);
             case "newplayers" -> throw new IllegalStateException("/core newplayers is handled as a multi-embed response.");
@@ -313,6 +323,30 @@ public final class DiscordBotListener extends ListenerAdapter {
 
     private MessageEmbed linkMinecraft(SlashCommandInteractionEvent event) {
         return linkMinecraftFor(event.getUser());
+    }
+
+    private MessageEmbed verifyWebsiteLogin(SlashCommandInteractionEvent event) {
+        RequestRateLimiter.Decision decision = discordWebLoginRateLimiter.tryAcquire(event.getUser().getId());
+        if (!decision.allowed()) {
+            throw new IllegalStateException(
+                    "Too many login attempts. Try again in " + decision.retryAfterSeconds() + " second(s)."
+            );
+        }
+        DiscordWebLoginChallengeRepository.VerificationResult result = discordWebLogin.verifyFromDiscord(
+                requiredString(event, "code"),
+                event.getUser().getId(),
+                event.getUser().getEffectiveName(),
+                event.getUser().getEffectiveAvatarUrl()
+        );
+        String message = switch (result.status()) {
+            case VERIFIED -> "Website login verified. Return to your browser and confirm this Discord account.";
+            case ALREADY_VERIFIED -> "This website login code was already verified. Return to your browser.";
+            case INVALID -> "Invalid website login code. Generate a new Discord Bot login code on the website.";
+            case EXPIRED -> "That website login code expired. Generate a new code on the website.";
+            case USED -> "That website login code has already been used.";
+            case INACTIVE -> "Your Core Builders profile is inactive.";
+        };
+        return views.simple("Discord Bot Website Login", message);
     }
 
     private MessageEmbed linkMinecraftFor(User user) {

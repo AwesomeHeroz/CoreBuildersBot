@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.corebuilders"
-version = "2.12.1"
+version = "2.13.0"
 
 java {
     toolchain {
@@ -225,10 +225,14 @@ val verifyShadowJar = tasks.register("verifyShadowJar") {
             "com/corebuilders/bot/service/MarketplaceAuthorizer.class",
             "com/corebuilders/bot/service/MarketplaceImagePolicy.class",
             "com/corebuilders/bot/service/WebLoginService.class",
+            "com/corebuilders/bot/service/DiscordWebLoginService.class",
+            "com/corebuilders/bot/service/DiscordWebLoginChallengeRepository.class",
             "com/corebuilders/bot/persistence/QueryDslWebLoginChallengeRepository.class",
+            "com/corebuilders/bot/persistence/QueryDslDiscordWebLoginChallengeRepository.class",
             "com/corebuilders/bot/web/MarketplaceHttpServer.class",
             "db/migration/V7__minecraft_web_login.sql",
             "db/migration/V8__marketplace_security_hardening.sql",
+            "db/migration/V9__discord_bot_web_login.sql",
             "com/corebuilders/bot/minecraft/MinecraftIdentityPolicy.class",
             "com/corebuilders/bot/web/auth/DiscordOAuthHttpClient.class",
             "com/corebuilders/bot/discord/CommandRegistrar.class",

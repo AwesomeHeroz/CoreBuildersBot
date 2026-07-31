@@ -14,8 +14,9 @@ import static com.corebuilders.bot.db.DbValues.uuid;
 import static com.corebuilders.bot.db.Schema.MEMBERS;
 
 /**
- * Website identity adapter. Minecraft owns authentication; Discord is an
- * optional linked identity used for marketplace delivery and notifications.
+ * Website identity adapter for authenticated member profiles. Website sessions
+ * can be established through Minecraft or the Discord bot; Discord remains the
+ * marketplace identity used for delivery and notifications.
  */
 public final class CoreWebsiteIdentity implements WebsiteIdentity {
     private final QueryDslDatabase database;

@@ -12,6 +12,7 @@ import com.corebuilders.bot.model.RankCatalog;
 import com.corebuilders.bot.minecraft.MinecraftIdentityPolicy;
 import com.corebuilders.bot.model.ShopCatalog;
 import com.corebuilders.bot.persistence.QueryDslWebLoginChallengeRepository;
+import com.corebuilders.bot.persistence.QueryDslDiscordWebLoginChallengeRepository;
 import com.corebuilders.bot.discord.ApplicationDiscordListener;
 import com.corebuilders.bot.discord.ApplicationPanelService;
 import com.corebuilders.bot.discord.CommandRegistrar;
@@ -131,6 +132,10 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     new QueryDslWebLoginChallengeRepository(database),
                     java.time.Duration.ofMinutes(10)
             );
+            DiscordWebLoginService discordWebLogin = new DiscordWebLoginService(
+                    new QueryDslDiscordWebLoginChallengeRepository(database),
+                    java.time.Duration.ofMinutes(10)
+            );
             ApplicationConfig applicationConfig = new ApplicationConfig(plugin.getConfig());
             ApplicationService applications = new ApplicationService(
                     database, objectMapper, audit, applicationConfig.isPreventDuplicatePending()
@@ -168,6 +173,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     marketplace,
                     audit,
                     links,
+                    discordWebLogin,
                     permissions,
                     rankRoles,
                     notifier,
@@ -225,6 +231,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                         new DiscordOAuthHttpClient(websiteConfig, properties.getGuildId(), objectMapper),
                         new CoreWebsiteIdentity(database, ledger),
                         webLogin,
+                        discordWebLogin,
                         marketplace, // catalog reads
                         marketplace, // shop management
                         marketplace, // cart and checkout

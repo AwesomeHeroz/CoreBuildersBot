@@ -35,6 +35,7 @@ public final class Schema {
     public static final QAuditLogs AUDIT_LOGS = new QAuditLogs("al");
     public static final QMinecraftLinkCodes LINK_CODES = new QMinecraftLinkCodes("lc");
     public static final QWebLoginChallenges WEB_LOGIN_CHALLENGES = new QWebLoginChallenges("wlc");
+    public static final QDiscordWebLoginChallenges DISCORD_WEB_LOGIN_CHALLENGES = new QDiscordWebLoginChallenges("dwlc");
     public static final QApplications APPLICATIONS = new QApplications("app");
     public static final QMarketplaceShops MARKETPLACE_SHOPS = new QMarketplaceShops("mps");
     public static final QMarketplaceItems MARKETPLACE_ITEMS = new QMarketplaceItems("mpi");
@@ -240,6 +241,20 @@ public final class Schema {
         public final DateTimePath<LocalDateTime> consumedAt = createDateTime("consumed_at", LocalDateTime.class);
         public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
         public QWebLoginChallenges(String variable) { super(variable, "web_login_challenges"); }
+    }
+    public static final class QDiscordWebLoginChallenges extends Table {
+        public final StringPath id = createString("id");
+        public final StringPath browserTokenHash = createString("browser_token_hash");
+        public final StringPath verificationCodeHash = createString("verification_code_hash");
+        public final StringPath memberId = createString("member_id");
+        public final StringPath discordUserId = createString("discord_user_id");
+        public final StringPath discordUsername = createString("discord_username");
+        public final StringPath discordAvatarUrl = createString("discord_avatar_url");
+        public final DateTimePath<LocalDateTime> expiresAt = createDateTime("expires_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> verifiedAt = createDateTime("verified_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> consumedAt = createDateTime("consumed_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
+        public QDiscordWebLoginChallenges(String variable) { super(variable, "discord_web_login_challenges"); }
     }
     public static final class QApplications extends Table {
         public final StringPath id = createString("id");

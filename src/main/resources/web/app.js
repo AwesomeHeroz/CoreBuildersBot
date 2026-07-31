@@ -123,7 +123,13 @@ function showPromptModal(options) {
   return showActionModal(options);
 }
 
-function openMinecraftLoginModal() {
+function openCodeLoginModal({
+  verifyTitle,
+  instructions,
+  waitingText,
+  confirmTitle,
+  accountLabel
+}) {
   const $jq = requireJQuery();
   const $modal = $jq('#minecraft-login-modal');
   const previousFocus = document.activeElement;
@@ -141,27 +147,29 @@ function openMinecraftLoginModal() {
     if (closed) return;
     closed = true;
     finishDecision(accepted);
-    $modal.addClass('hidden').attr('aria-hidden', 'true').off('.minecraftLogin');
-    $jq(document).off('.minecraftLogin');
-    $jq('#minecraft-login-cancel, #minecraft-login-close, #minecraft-login-confirm').off('.minecraftLogin');
+    $modal.addClass('hidden').attr('aria-hidden', 'true').off('.codeLogin');
+    $jq(document).off('.codeLogin');
+    $jq('#minecraft-login-cancel, #minecraft-login-close, #minecraft-login-confirm').off('.codeLogin');
     setModalOpen(false);
     if (previousFocus instanceof HTMLElement) previousFocus.focus();
   };
 
-  $jq('#minecraft-login-title').text('Verify login in Minecraft');
+  $jq('#minecraft-login-title').text(verifyTitle);
   $jq('#minecraft-login-status').text('Creating a one-time login code…');
   $jq('#minecraft-login-code').text('--------');
   $jq('#minecraft-login-command').text('');
+  $jq('#minecraft-login-instructions').text(instructions);
+  $jq('#minecraft-login-account-label').text(accountLabel);
   $jq('#minecraft-login-challenge').removeClass('hidden');
   $jq('#minecraft-login-account').addClass('hidden');
   $jq('#minecraft-login-confirm').prop('disabled', false).text('Continue').addClass('hidden');
   $jq('#minecraft-login-cancel').text('Cancel');
 
-  $jq('#minecraft-login-cancel, #minecraft-login-close').on('click.minecraftLogin', () => close(false));
-  $modal.on('mousedown.minecraftLogin', (event) => {
+  $jq('#minecraft-login-cancel, #minecraft-login-close').on('click.codeLogin', () => close(false));
+  $modal.on('mousedown.codeLogin', (event) => {
     if (event.target === $modal.get(0)) close(false);
   });
-  $jq(document).on('keydown.minecraftLogin', (event) => {
+  $jq(document).on('keydown.codeLogin', (event) => {
     if (event.key === 'Escape') close(false);
   });
 
@@ -175,22 +183,22 @@ function openMinecraftLoginModal() {
       if (closed) return;
       $jq('#minecraft-login-code').text(challenge.code);
       $jq('#minecraft-login-command').text(challenge.command);
-      $jq('#minecraft-login-status').text('Waiting for verification from the game…');
+      $jq('#minecraft-login-status').text(waitingText);
     },
-    confirmAccount(minecraftName) {
+    confirmAccount(displayName) {
       if (closed) return Promise.resolve(false);
-      $jq('#minecraft-login-title').text('Confirm Minecraft account');
+      $jq('#minecraft-login-title').text(confirmTitle);
       $jq('#minecraft-login-status').text('The login code was verified successfully.');
       $jq('#minecraft-login-challenge').addClass('hidden');
-      $jq('#minecraft-login-name').text(minecraftName);
+      $jq('#minecraft-login-name').text(displayName);
       $jq('#minecraft-login-account').removeClass('hidden');
       $jq('#minecraft-login-confirm').removeClass('hidden');
       $jq('#minecraft-login-cancel').text('Use another account');
       return new Promise((resolve) => {
         decisionResolver = resolve;
         $jq('#minecraft-login-confirm')
-          .off('click.minecraftLoginConfirm')
-          .on('click.minecraftLoginConfirm', () => {
+          .off('click.codeLoginConfirm')
+          .on('click.codeLoginConfirm', () => {
             finishDecision(true);
             $jq('#minecraft-login-confirm').prop('disabled', true).text('Signing in…');
           })
@@ -260,29 +268,35 @@ async function loadMe() {
   renderAuthenticatedVisibility();
 }
 
-async function startMinecraftLogin() {
+async function startCodeLogin({
+  challengeEndpoint,
+  completionEndpoint,
+  displayField,
+  modalOptions,
+  successMessage
+}) {
   let modal;
   try {
-    modal = openMinecraftLoginModal();
-    const challenge = await api('/api/auth/challenge', { method: 'POST' });
+    modal = openCodeLoginModal(modalOptions);
+    const challenge = await api(challengeEndpoint, { method: 'POST' });
     if (!modal.isOpen()) return;
     modal.showChallenge(challenge);
 
     while (modal.isOpen()) {
       await new Promise((resolve) => window.setTimeout(resolve, 1500));
       if (!modal.isOpen()) return;
-      const result = await api('/api/auth/complete', {
+      const result = await api(completionEndpoint, {
         method: 'POST',
         body: { challengeToken: challenge.challengeToken, confirm: false }
       });
       if (result.status === 'ready') {
-        const accepted = await modal.confirmAccount(result.minecraftName);
+        const accepted = await modal.confirmAccount(result[displayField] || 'Unknown');
         if (!accepted || !modal.isOpen()) {
           modal.close();
           notify('Login cancelled. Generate a new code when ready.');
           return;
         }
-        const completed = await api('/api/auth/complete', {
+        const completed = await api(completionEndpoint, {
           method: 'POST',
           body: { challengeToken: challenge.challengeToken, confirm: true }
         });
@@ -290,18 +304,14 @@ async function startMinecraftLogin() {
         modal.close(true);
         await loadMe();
         if (state.me?.discordUserId) await loadCart();
-        notify(state.me?.discordUserId
-          ? 'Minecraft login successful.'
-          : 'Minecraft login successful. Link Discord to unlock marketplace account features.');
+        notify(typeof successMessage === 'function' ? successMessage(state.me) : successMessage);
         return;
       }
       if (result.status === 'completed') {
         modal.close(true);
         await loadMe();
         if (state.me?.discordUserId) await loadCart();
-        notify(state.me?.discordUserId
-          ? 'Minecraft login successful.'
-          : 'Minecraft login successful. Link Discord to unlock marketplace account features.');
+        notify(typeof successMessage === 'function' ? successMessage(state.me) : successMessage);
         return;
       }
     }
@@ -311,14 +321,51 @@ async function startMinecraftLogin() {
   }
 }
 
+function startMinecraftLogin() {
+  return startCodeLogin({
+    challengeEndpoint: '/api/auth/challenge',
+    completionEndpoint: '/api/auth/complete',
+    displayField: 'minecraftName',
+    modalOptions: {
+      verifyTitle: 'Verify login in Minecraft',
+      instructions: 'Join the Minecraft server with the account you want to use, then run this command in chat.',
+      waitingText: 'Waiting for verification from the game…',
+      confirmTitle: 'Confirm Minecraft account',
+      accountLabel: 'Verified Minecraft account'
+    },
+    successMessage: (me) => me?.discordUserId
+      ? 'Minecraft login successful.'
+      : 'Minecraft login successful. Link Discord to unlock marketplace account features.'
+  });
+}
+
+function startDiscordBotLogin() {
+  return startCodeLogin({
+    challengeEndpoint: '/api/auth/discord-bot/challenge',
+    completionEndpoint: '/api/auth/discord-bot/complete',
+    displayField: 'discordName',
+    modalOptions: {
+      verifyTitle: 'Verify login through Discord',
+      instructions: 'In the Core Builders Discord server, run this private slash command with the account you want to use.',
+      waitingText: 'Waiting for verification from the Discord bot…',
+      confirmTitle: 'Confirm Discord account',
+      accountLabel: 'Verified Discord account'
+    },
+    successMessage: 'Discord Bot login successful.'
+  });
+}
+
 function renderAuth(balance) {
   const area = $('#auth-area');
   area.replaceChildren();
   if (!state.me) {
-    const login = element('button', 'button primary', 'Log in through Minecraft');
-    login.type = 'button';
-    login.addEventListener('click', startMinecraftLogin);
-    area.append(login);
+    const discordLogin = element('button', 'button discord', 'Log in through Discord Bot');
+    discordLogin.type = 'button';
+    discordLogin.addEventListener('click', startDiscordBotLogin);
+    const minecraftLogin = element('button', 'button primary', 'Log in through Minecraft');
+    minecraftLogin.type = 'button';
+    minecraftLogin.addEventListener('click', startMinecraftLogin);
+    area.append(discordLogin, minecraftLogin);
     return;
   }
   const chip = element('div', 'user-chip');
@@ -429,7 +476,7 @@ function itemCard(item) {
   const marketplaceAccountReady = Boolean(state.me?.discordUserId);
   add.disabled = !marketplaceAccountReady || item.stock <= 0 || own;
   add.title = !state.me
-    ? 'Log in through Minecraft to buy'
+    ? 'Log in to buy'
     : !state.me.discordUserId
       ? 'Link Discord to buy'
       : own

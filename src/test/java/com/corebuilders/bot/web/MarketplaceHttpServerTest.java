@@ -3,6 +3,8 @@ package com.corebuilders.bot.web;
 import com.corebuilders.bot.config.WebsiteConfig;
 import com.corebuilders.bot.model.MarketplaceModels.*;
 import com.corebuilders.bot.service.MarketplaceOperations;
+import com.corebuilders.bot.service.DiscordWebLoginChallengeRepository;
+import com.corebuilders.bot.service.DiscordWebLoginService;
 import com.corebuilders.bot.service.WebLoginChallengeRepository;
 import com.corebuilders.bot.service.WebLoginService;
 import com.corebuilders.bot.web.auth.DiscordIdentity;
@@ -51,6 +53,8 @@ class MarketplaceHttpServerTest {
 
     private FakeMarketplace marketplace;
     private FakeLoginRepository loginRepository;
+    private FakeDiscordLoginRepository discordLoginRepository;
+    private AtomicBoolean discordLinked;
     private MarketplaceHttpServer server;
     private URI baseUri;
 
@@ -76,7 +80,7 @@ class MarketplaceHttpServerTest {
                 "", ""
         );
         DiscordOAuth oauth = new FakeOAuth();
-        AtomicBoolean discordLinked = new AtomicBoolean(false);
+        discordLinked = new AtomicBoolean(false);
         AtomicLong securityVersion = new AtomicLong(0L);
         WebsiteIdentity identity = new WebsiteIdentity() {
             @Override
@@ -108,9 +112,13 @@ class MarketplaceHttpServerTest {
             }
         };
         loginRepository = new FakeLoginRepository();
+        discordLoginRepository = new FakeDiscordLoginRepository(discordLinked);
         WebLoginService webLogin = new WebLoginService(loginRepository, Duration.ofMinutes(10));
+        DiscordWebLoginService discordWebLogin = new DiscordWebLoginService(
+                discordLoginRepository, Duration.ofMinutes(10));
         server = new MarketplaceHttpServer(
-                config, mapper, oauth, identity, webLogin, marketplace, Logger.getAnonymousLogger());
+                config, mapper, oauth, identity, webLogin, discordWebLogin, marketplace,
+                Logger.getAnonymousLogger());
         server.start();
         baseUri = URI.create("http://127.0.0.1:" + server.port());
     }
@@ -286,6 +294,37 @@ class MarketplaceHttpServerTest {
         assertEquals(415, response.statusCode());
     }
 
+    @Test
+    void supportsOneTimeDiscordBotWebsiteLogin() throws Exception {
+        Response challenge = request("POST", "/api/auth/discord-bot/challenge", null, null, null);
+        assertEquals(201, challenge.status());
+        String challengeToken = challenge.json().path("challengeToken").asText();
+        assertFalse(challengeToken.isBlank());
+        assertTrue(challenge.json().path("command").asText().startsWith("/core web-login code:"));
+
+        String completionBody = "{\"challengeToken\":\"" + challengeToken + "\",\"confirm\":false}";
+        Response pending = request("POST", "/api/auth/discord-bot/complete", null, null, completionBody);
+        assertEquals(202, pending.status());
+        assertEquals("pending", pending.json().path("status").asText());
+
+        discordLoginRepository.verifyLatest();
+        Response ready = request("POST", "/api/auth/discord-bot/complete", null, null, completionBody);
+        assertEquals(200, ready.status());
+        assertEquals("ready", ready.json().path("status").asText());
+        assertEquals("BuilderDiscord", ready.json().path("discordName").asText());
+
+        Response completed = request("POST", "/api/auth/discord-bot/complete", null, null,
+                "{\"challengeToken\":\"" + challengeToken + "\",\"confirm\":true}");
+        assertEquals(200, completed.status());
+        assertEquals("completed", completed.json().path("status").asText());
+        String session = cookieValue(completed.headers(), "core_session");
+        assertFalse(session.isBlank());
+
+        Response me = request("GET", "/api/auth/me", "core_session=" + session, null, null);
+        assertTrue(me.json().path("authenticated").asBoolean());
+        assertEquals("123456789012345678", me.json().path("user").path("discordUserId").asText());
+    }
+
     private Login login() throws Exception {
         Response challenge = request("POST", "/api/auth/challenge", null, null, null);
         assertEquals(201, challenge.status());
@@ -408,6 +447,67 @@ class MarketplaceHttpServerTest {
         void verifyLatest() {
             assertNotNull(challenge);
             verified = true;
+        }
+    }
+
+    private static final class FakeDiscordLoginRepository implements DiscordWebLoginChallengeRepository {
+        private final AtomicBoolean discordLinked;
+        private NewChallenge challenge;
+        private boolean verified;
+        private boolean consumed;
+
+        private FakeDiscordLoginRepository(AtomicBoolean discordLinked) {
+            this.discordLinked = discordLinked;
+        }
+
+        @Override
+        public void create(NewChallenge challenge) {
+            this.challenge = challenge;
+            this.verified = false;
+            this.consumed = false;
+        }
+
+        @Override
+        public VerificationResult verify(
+                String verificationCodeHash,
+                String discordUserId,
+                String discordUsername,
+                String discordAvatarUrl,
+                Instant now
+        ) {
+            if (challenge == null || !challenge.verificationCodeHash().equals(verificationCodeHash)) {
+                return new VerificationResult(VerificationStatus.INVALID, null);
+            }
+            verified = true;
+            discordLinked.set(true);
+            return new VerificationResult(VerificationStatus.VERIFIED, MEMBER_ID);
+        }
+
+        @Override
+        public CompletionResult complete(String browserTokenHash, Instant now, boolean consume) {
+            if (challenge == null || !challenge.browserTokenHash().equals(browserTokenHash)) {
+                return new CompletionResult(CompletionStatus.INVALID, null, null, null);
+            }
+            if (consumed) {
+                return new CompletionResult(CompletionStatus.USED, MEMBER_ID,
+                        "BuilderDiscord", "https://cdn.example/avatar.png");
+            }
+            if (!verified) {
+                return new CompletionResult(CompletionStatus.PENDING, null, null, null);
+            }
+            if (!consume) {
+                return new CompletionResult(CompletionStatus.READY, MEMBER_ID,
+                        "BuilderDiscord", "https://cdn.example/avatar.png");
+            }
+            consumed = true;
+            return new CompletionResult(CompletionStatus.COMPLETED, MEMBER_ID,
+                    "BuilderDiscord", "https://cdn.example/avatar.png");
+        }
+
+        void verifyLatest() {
+            assertNotNull(challenge);
+            verified = true;
+            discordLinked.set(true);
         }
     }
 

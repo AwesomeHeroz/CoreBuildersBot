@@ -11,6 +11,8 @@ import com.corebuilders.bot.service.MarketplaceOrderOperations;
 import com.corebuilders.bot.service.MarketplaceShopManagementOperations;
 import com.corebuilders.bot.service.WebLoginChallengeRepository;
 import com.corebuilders.bot.service.WebLoginService;
+import com.corebuilders.bot.service.DiscordWebLoginChallengeRepository;
+import com.corebuilders.bot.service.DiscordWebLoginService;
 import com.corebuilders.bot.web.auth.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.Headers;
@@ -51,6 +53,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     private final DiscordOAuth oauth;
     private final WebsiteIdentity identity;
     private final WebLoginService webLogin;
+    private final DiscordWebLoginService discordWebLogin;
     private final MarketplaceCatalogOperations catalog;
     private final MarketplaceShopManagementOperations shopManagement;
     private final MarketplaceCartOperations carts;
@@ -74,7 +77,8 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             MarketplaceOperations marketplace,
             Logger logger
     ) throws IOException {
-        this(config, mapper, oauth, identity, WebLoginService.disabled(), marketplace, logger);
+        this(config, mapper, oauth, identity, WebLoginService.disabled(),
+                DiscordWebLoginService.disabled(), marketplace, logger);
     }
 
     public MarketplaceHttpServer(
@@ -87,6 +91,20 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             Logger logger
     ) throws IOException {
         this(config, mapper, oauth, identity, webLogin,
+                DiscordWebLoginService.disabled(), marketplace, logger);
+    }
+
+    public MarketplaceHttpServer(
+            WebsiteConfig config,
+            ObjectMapper mapper,
+            DiscordOAuth oauth,
+            WebsiteIdentity identity,
+            WebLoginService webLogin,
+            DiscordWebLoginService discordWebLogin,
+            MarketplaceOperations marketplace,
+            Logger logger
+    ) throws IOException {
+        this(config, mapper, oauth, identity, webLogin, discordWebLogin,
                 marketplace, marketplace, marketplace, marketplace, logger);
     }
 
@@ -102,11 +120,29 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             MarketplaceOrderOperations orders,
             Logger logger
     ) throws IOException {
+        this(config, mapper, oauth, identity, webLogin, DiscordWebLoginService.disabled(),
+                catalog, shopManagement, carts, orders, logger);
+    }
+
+    public MarketplaceHttpServer(
+            WebsiteConfig config,
+            ObjectMapper mapper,
+            DiscordOAuth oauth,
+            WebsiteIdentity identity,
+            WebLoginService webLogin,
+            DiscordWebLoginService discordWebLogin,
+            MarketplaceCatalogOperations catalog,
+            MarketplaceShopManagementOperations shopManagement,
+            MarketplaceCartOperations carts,
+            MarketplaceOrderOperations orders,
+            Logger logger
+    ) throws IOException {
         this.config = config;
         this.mapper = mapper;
         this.oauth = oauth;
         this.identity = identity;
-        this.webLogin = webLogin;
+        this.webLogin = java.util.Objects.requireNonNull(webLogin, "webLogin");
+        this.discordWebLogin = java.util.Objects.requireNonNull(discordWebLogin, "discordWebLogin");
         this.catalog = java.util.Objects.requireNonNull(catalog, "catalog");
         this.shopManagement = java.util.Objects.requireNonNull(shopManagement, "shopManagement");
         this.carts = java.util.Objects.requireNonNull(carts, "carts");
@@ -224,6 +260,16 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             completeMinecraftLogin(exchange);
             return;
         }
+        if (path.equals("/api/auth/discord-bot/challenge") && method.equals("POST")) {
+            requireRateLimit(exchange, loginChallengeLimiter, "discord-bot-login-challenge");
+            startDiscordBotLogin(exchange);
+            return;
+        }
+        if (path.equals("/api/auth/discord-bot/complete") && method.equals("POST")) {
+            requireRateLimit(exchange, loginCompletionLimiter, "discord-bot-login-complete");
+            completeDiscordBotLogin(exchange);
+            return;
+        }
         if (path.equals("/api/account/discord/link") && method.equals("GET")) {
             startDiscordLink(exchange);
             return;
@@ -282,7 +328,8 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             return;
         }
         if (path.equals("/api/auth/login") || path.equals("/api/auth/callback")) {
-            sendProblem(exchange, 404, "not_found", "Discord login is no longer available.");
+            sendProblem(exchange, 404, "not_found",
+                    "Legacy Discord OAuth login is no longer available. Use Discord Bot login instead.");
             return;
         }
 
@@ -424,6 +471,34 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         }
     }
 
+    private void startDiscordBotLogin(HttpExchange exchange) throws IOException {
+        DiscordWebLoginService.StartChallenge challenge = discordWebLogin.createChallenge();
+        sendJson(exchange, 201, challenge);
+    }
+
+    private void completeDiscordBotLogin(HttpExchange exchange) throws IOException {
+        CompleteLoginRequest request = readJson(exchange, CompleteLoginRequest.class);
+        DiscordWebLoginChallengeRepository.CompletionResult result = discordWebLogin.complete(
+                request.challengeToken(), request.confirm());
+        switch (result.status()) {
+            case PENDING -> sendJson(exchange, 202, Map.of("status", "pending"));
+            case READY -> sendJson(exchange, 200, Map.of(
+                    "status", "ready",
+                    "discordName", result.discordUsername() == null ? "Unknown" : result.discordUsername(),
+                    "discordAvatarUrl", result.discordAvatarUrl() == null ? "" : result.discordAvatarUrl()));
+            case COMPLETED -> {
+                SessionPrincipal principal = identity.requireProfile(result.memberId());
+                WebSessionStore.Session session = sessions.create(principal);
+                setCookie(exchange, SESSION_COOKIE, session.id(), config.sessionLifetime(), true);
+                sendJson(exchange, 200, Map.of("status", "completed"));
+            }
+            case INVALID -> throw new HttpStatusException(404, "invalid_challenge", "Discord login challenge not found.");
+            case EXPIRED -> throw new HttpStatusException(410, "expired_challenge", "Discord login challenge expired.");
+            case USED -> throw new HttpStatusException(409, "used_challenge", "Discord login challenge was already used.");
+            case INACTIVE -> throw new HttpStatusException(403, "inactive_profile", "Your Core Builders profile is inactive.");
+        }
+    }
+
     private void startDiscordLink(HttpExchange exchange) throws IOException {
         WebSessionStore.Session session = requireSession(exchange);
         requireRateLimit(exchange, loginChallengeLimiter,
@@ -484,7 +559,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
 
     private WebSessionStore.Session requireSession(HttpExchange exchange) {
         return optionalSession(exchange).orElseThrow(() -> new HttpStatusException(
-                401, "unauthorized", "Log in through Minecraft first."));
+                401, "unauthorized", "Log in through Minecraft or the Discord bot first."));
     }
 
     private Optional<WebSessionStore.Session> optionalSession(HttpExchange exchange) {
