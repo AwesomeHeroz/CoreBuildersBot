@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** Loads the Core Credit shop catalog from config.yml. */
+/** Loads the coin shop catalog from config.yml. */
 public final class ShopConfig {
     private ShopConfig() {}
 

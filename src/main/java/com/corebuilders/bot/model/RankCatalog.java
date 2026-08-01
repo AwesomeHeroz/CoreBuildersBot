@@ -50,7 +50,7 @@ public final class RankCatalog {
             }
         }
         if (sorted.getFirst().minimumXp() != 0) {
-            throw new IllegalArgumentException("The first progression rank must start at 0 XP.");
+            throw new IllegalArgumentException("The first progression rank must start at 0 points.");
         }
 
         this.ranks = List.copyOf(sorted);

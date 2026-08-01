@@ -110,7 +110,7 @@ public final class ContributionService {
             }
 
             audit.log(reviewerDiscordId, "CONTRIBUTION_APPROVED", contribution.discordUserId(),
-                    "CONTRIBUTION", id.toString(), "Awarded " + cxp + " CXP and " + credits + " CC. " + nullToEmpty(reason));
+                    "CONTRIBUTION", id.toString(), "Awarded " + cxp + " points and " + credits + " coins. " + nullToEmpty(reason));
             return get(id);
         });
     }

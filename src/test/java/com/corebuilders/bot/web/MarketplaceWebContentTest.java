@@ -25,6 +25,20 @@ class MarketplaceWebContentTest {
         assertTrue(javascript.contains("Join play.corebuilders.gg"));
     }
 
+    @Test
+    void usesCoinsForMarketplacePrices() throws IOException {
+        String html = resource("/web/index.html");
+        String javascript = resource("/web/app.js");
+
+        assertTrue(html.contains("Purchases use coins"));
+        assertTrue(html.contains("id=\"cart-total\">0 coins"));
+        assertTrue(javascript.contains("const coins ="));
+        assertTrue(javascript.contains("const shortCoins ="));
+        assertTrue(!html.contains("contribution points"));
+        assertTrue(!javascript.contains(" contribution points"));
+        assertTrue(!javascript.contains(" CP`"));
+    }
+
     private static String resource(String path) throws IOException {
         try (InputStream input = MarketplaceWebContentTest.class.getResourceAsStream(path)) {
             if (input == null) throw new IOException("Missing test resource: " + path);

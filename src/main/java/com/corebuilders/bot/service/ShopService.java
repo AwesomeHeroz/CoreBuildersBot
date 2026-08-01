@@ -108,8 +108,8 @@ public final class ShopService {
             }
             long balance = ledger.creditBalance(member.id());
             if (balance < item.price()) {
-                throw new IllegalStateException("Insufficient Core Credits. You need "
-                        + item.price() + " CC but have " + balance + " CC.");
+                throw new IllegalStateException("Insufficient coins. You need "
+                        + item.price() + " coins but have " + balance + " coins.");
             }
 
             UUID orderId = UUID.randomUUID();
@@ -132,7 +132,7 @@ public final class ShopService {
                         .execute());
             }
             audit.log(member.discordUserId(), "SHOP_PURCHASE", member.discordUserId(),
-                    "SHOP_ORDER", orderId.toString(), item.name() + " for " + item.price() + " CC");
+                    "SHOP_ORDER", orderId.toString(), item.name() + " for " + item.price() + " coins");
             return getOrder(orderId);
         });
     }

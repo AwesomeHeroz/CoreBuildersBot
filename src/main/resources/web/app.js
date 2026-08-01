@@ -241,8 +241,8 @@ function openCodeLoginModal({
     close
   };
 }
-const points = (value) => `${new Intl.NumberFormat('en-US').format(value || 0)} contribution points`;
-const shortPoints = (value) => `${new Intl.NumberFormat('en-US').format(value || 0)} CP`;
+const coins = (value) => `${new Intl.NumberFormat('en-US').format(value || 0)} coins`;
+const shortCoins = (value) => `${new Intl.NumberFormat('en-US').format(value || 0)} coins`;
 const dateTime = (value) => value ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
 
 function element(tag, className, text) {
@@ -483,7 +483,7 @@ function renderAuth(balance) {
   chip.append(image(state.me.avatarUrl, '', `${state.me.username} avatar`));
   const details = element('div');
   details.append(element('strong', '', state.me.username));
-  details.append(element('small', '', shortPoints(balance)));
+  details.append(element('small', '', shortCoins(balance)));
   chip.append(details);
   const logout = element('button', 'button ghost', 'Log out');
   logout.type = 'button';
@@ -580,7 +580,7 @@ function itemCard(item) {
   const seller = element('p', 'seller', `${item.shopName} · ${item.sellerUsername}`);
   body.append(seller);
   const footer = element('div', 'item-footer');
-  footer.append(element('span', 'price', shortPoints(item.price)));
+  footer.append(element('span', 'price', shortCoins(item.price)));
   const add = element('button', 'button primary', item.stock > 0 ? 'Add to cart' : 'Out of stock');
   add.type = 'button';
   const own = Boolean(item.ownedByCurrentUser);
@@ -647,7 +647,7 @@ function renderShop() {
     row.append(image(item.imageUrl, '', item.name));
     const info = element('div');
     info.append(element('h3', '', item.name));
-    info.append(element('p', '', `${item.category} · ${shortPoints(item.price)} · ${item.stock} in stock`));
+    info.append(element('p', '', `${item.category} · ${shortCoins(item.price)} · ${item.stock} in stock`));
     if (!item.active) info.append(element('span', 'status-chip inactive', 'Inactive'));
     const actions = element('div', 'management-actions');
     const edit = element('button', 'button ghost', 'Edit');
@@ -719,7 +719,7 @@ function renderCart() {
   if (!state.me?.discordUserId) return;
   const list = $('#cart-items');
   list.replaceChildren();
-  $('#cart-total').textContent = points(state.cart?.total || 0);
+  $('#cart-total').textContent = coins(state.cart?.total || 0);
   $('#checkout-button').disabled = !state.cart?.items?.length;
   if (!state.cart?.items?.length) {
     list.append(element('div', 'empty-state', 'Your cart is empty.'));
@@ -730,7 +730,7 @@ function renderCart() {
     row.append(image(line.item.imageUrl, '', line.item.name));
     const info = element('div');
     info.append(element('h3', '', line.item.name));
-    info.append(element('p', '', `${line.item.shopName} · ${shortPoints(line.item.price)} each · ${line.item.stock} available`));
+    info.append(element('p', '', `${line.item.shopName} · ${shortCoins(line.item.price)} each · ${line.item.stock} available`));
     const quantity = element('div', 'quantity-control');
     const input = document.createElement('input');
     input.type = 'number';
@@ -755,7 +755,7 @@ function renderCart() {
       } catch (error) { notify(error.message, true); }
     });
     quantity.append(input, update, remove);
-    row.append(info, quantity, element('strong', '', shortPoints(line.lineTotal)));
+    row.append(info, quantity, element('strong', '', shortCoins(line.lineTotal)));
     list.append(row);
   }
 }
@@ -763,7 +763,7 @@ function renderCart() {
 async function checkout() {
   const accepted = await showConfirmModal({
     title: 'Confirm checkout',
-    message: `Spend ${points(state.cart?.total || 0)} and place this order?`,
+    message: `Spend ${coins(state.cart?.total || 0)} and place this order?`,
     confirmText: 'Place order'
   });
   if (!accepted) return;
@@ -780,7 +780,7 @@ async function checkout() {
       }))
     };
     const order = await api('/api/cart/checkout', { method: 'POST', body: checkoutRequest });
-    notify(`Order placed successfully for ${points(order.totalPrice)}.`);
+    notify(`Order placed successfully for ${coins(order.totalPrice)}.`);
     await Promise.all([loadMe(), loadCart(), loadItems(), loadOrders()]);
     showSection('orders');
   } catch (error) {
@@ -808,7 +808,7 @@ function renderOrders(orders) {
     const title = element('div');
     title.append(element('h3', '', `Order ${order.id.slice(0, 8)}`));
     title.append(element('span', 'muted', dateTime(order.createdAt)));
-    head.append(title, element('strong', '', shortPoints(order.totalPrice)), element('span', 'status-chip', order.status));
+    head.append(title, element('strong', '', shortCoins(order.totalPrice)), element('span', 'status-chip', order.status));
     card.append(head);
     const lines = element('div', 'order-lines');
     for (const line of order.lines || []) {
@@ -816,7 +816,7 @@ function renderOrders(orders) {
       const info = element('div');
       info.append(element('strong', '', `${line.quantity} × ${line.itemName}`));
       info.append(element('div', 'muted', `${line.shopName} · ${line.status.replaceAll('_', ' ')}`));
-      const amount = element('span', '', shortPoints(line.lineTotal));
+      const amount = element('span', '', shortCoins(line.lineTotal));
       row.append(info, amount);
       if (line.status === 'PENDING_DELIVERY') {
         const cancel = element('button', 'button ghost', 'Cancel');
@@ -824,7 +824,7 @@ function renderOrders(orders) {
         cancel.addEventListener('click', async () => {
           const accepted = await showConfirmModal({
             title: 'Cancel order item?',
-            message: `Cancel ${line.itemName} and refund ${shortPoints(line.lineTotal)}?`,
+            message: `Cancel ${line.itemName} and refund ${shortCoins(line.lineTotal)}?`,
             confirmText: 'Cancel and refund',
             danger: true
           });
@@ -904,7 +904,7 @@ function renderSales(sales) {
     const info = element('div');
     info.append(element('h3', '', `${sale.quantity} × ${sale.itemName}`));
     info.append(element('div', 'muted', `Buyer: ${sale.buyerUsername} · ${dateTime(sale.createdAt)}`));
-    head.append(info, element('strong', '', shortPoints(sale.lineTotal)));
+    head.append(info, element('strong', '', shortCoins(sale.lineTotal)));
     const status = element('span', `status-chip${sale.status === 'DELIVERED' ? '' : ' inactive'}`, sale.status.replaceAll('_', ' '));
     head.append(status);
     card.append(head);

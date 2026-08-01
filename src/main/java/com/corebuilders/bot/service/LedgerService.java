@@ -53,7 +53,7 @@ public final class LedgerService {
     public UUID addXp(UUID memberId, long amount, ContributionCategory category, SourceType sourceType,
                       UUID referenceId, String reason, String actorDiscordId) {
         if (amount <= 0) {
-            throw new IllegalArgumentException("XP credits must be positive; use debitXpIfSufficient for debits.");
+            throw new IllegalArgumentException("Point grants must be positive; use debitXpIfSufficient for debits.");
         }
         return database.inTransaction(() -> insertXp(memberId, amount, category, sourceType,
                 referenceId, reason, actorDiscordId));
@@ -66,11 +66,11 @@ public final class LedgerService {
     public UUID debitXpIfSufficient(UUID memberId, long amount, ContributionCategory category,
                                     SourceType sourceType, UUID referenceId, String reason,
                                     String actorDiscordId) {
-        if (amount <= 0) throw new IllegalArgumentException("XP debit amount must be positive.");
+        if (amount <= 0) throw new IllegalArgumentException("Point debit amount must be positive.");
         return database.inTransaction(() -> {
             lockMember(memberId);
             if (totalXp(memberId) < amount) {
-                throw new IllegalArgumentException("The member does not have enough XP for this adjustment.");
+                throw new IllegalArgumentException("The member does not have enough points for this adjustment.");
             }
             return insertXp(memberId, -amount, category, sourceType, referenceId, reason, actorDiscordId);
         });
@@ -79,7 +79,7 @@ public final class LedgerService {
     public UUID addCredits(UUID memberId, long amount, SourceType sourceType, UUID referenceId,
                            String reason, String actorDiscordId) {
         if (amount <= 0) {
-            throw new IllegalArgumentException("Credit grants must be positive; use debitIfSufficient for debits.");
+            throw new IllegalArgumentException("Coin grants must be positive; use debitIfSufficient for debits.");
         }
         return database.inTransaction(() -> insertCredits(memberId, amount, sourceType,
                 referenceId, reason, actorDiscordId));
@@ -92,12 +92,12 @@ public final class LedgerService {
      */
     public UUID debitIfSufficient(UUID memberId, long amount, SourceType sourceType, UUID referenceId,
                                   String reason, String actorDiscordId) {
-        if (amount <= 0) throw new IllegalArgumentException("Credit debit amount must be positive.");
+        if (amount <= 0) throw new IllegalArgumentException("Coin debit amount must be positive.");
         return database.inTransaction(() -> {
             lockMember(memberId);
             if (creditBalance(memberId) < amount) {
                 throw new MarketplaceException(MarketplaceException.Code.INSUFFICIENT_FUNDS,
-                        "Insufficient Core Credits.");
+                        "Insufficient coins.");
             }
             return insertCredits(memberId, -amount, sourceType, referenceId, reason, actorDiscordId);
         });
@@ -105,7 +105,7 @@ public final class LedgerService {
 
     private UUID insertXp(UUID memberId, long amount, ContributionCategory category, SourceType sourceType,
                           UUID referenceId, String reason, String actorDiscordId) {
-        if (amount == 0) throw new IllegalArgumentException("XP amount cannot be zero.");
+        if (amount == 0) throw new IllegalArgumentException("Point amount cannot be zero.");
         UUID id = UUID.randomUUID();
         database.query(q -> {
             var insert = q.insert(XP)
@@ -126,7 +126,7 @@ public final class LedgerService {
 
     private UUID insertCredits(UUID memberId, long amount, SourceType sourceType, UUID referenceId,
                                String reason, String actorDiscordId) {
-        if (amount == 0) throw new IllegalArgumentException("Credit amount cannot be zero.");
+        if (amount == 0) throw new IllegalArgumentException("Coin amount cannot be zero.");
         UUID id = UUID.randomUUID();
         database.query(q -> {
             var insert = q.insert(CREDITS)
@@ -217,7 +217,7 @@ public final class LedgerService {
                     .limit(safeLimit)
                     .fetch()
                     .forEach(t -> entries.add(new LedgerEntry(
-                            "CXP", value(t.get(XP.amount)), t.get(XP.category),
+                            "points", value(t.get(XP.amount)), t.get(XP.category),
                             t.get(XP.reason), instant(t.get(XP.createdAt)))));
 
             q.select(CREDITS.amount, CREDITS.reason, CREDITS.createdAt)
@@ -227,7 +227,7 @@ public final class LedgerService {
                     .limit(safeLimit)
                     .fetch()
                     .forEach(t -> entries.add(new LedgerEntry(
-                            "CC", value(t.get(CREDITS.amount)), null,
+                            "coins", value(t.get(CREDITS.amount)), null,
                             t.get(CREDITS.reason), instant(t.get(CREDITS.createdAt)))));
 
             return entries.stream()

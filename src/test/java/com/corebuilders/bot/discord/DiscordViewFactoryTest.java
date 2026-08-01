@@ -31,7 +31,7 @@ class DiscordViewFactoryTest {
         );
 
         var embed = views.contributionReviewed(contribution);
-        assertTrue(embed.getFields().stream().anyMatch(field -> "0 CXP • 0 CC".equals(field.getValue())));
+        assertTrue(embed.getFields().stream().anyMatch(field -> "0 points • 0 coins".equals(field.getValue())));
     }
 
 }

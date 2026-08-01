@@ -104,16 +104,16 @@ public final class CoreCommand implements CommandExecutor, TabCompleter {
                 return "§6§lCore Builders Profile\n"
                         + "§fMember: §e" + profile.member().username() + "\n"
                         + "§fRank: §e" + profile.rank().display() + " §7(Level " + profile.level() + ")\n"
-                        + "§fCore XP: §b" + profile.totalXp() + " CXP\n"
-                        + "§fCore Credits: §a" + profile.credits() + " CC\n"
-                        + "§fWeekly XP: §d" + profile.weeklyXp() + " CXP\n"
+                        + "§fPoints: §b" + profile.totalXp() + " points\n"
+                        + "§fCoins: §a" + profile.credits() + " coins\n"
+                        + "§fWeekly points: §d" + profile.weeklyXp() + " points\n"
                         + "§fReputation: §e" + profile.member().reputation().display();
             });
             case "balance" -> async(player, () -> {
                 String discordId = requireLinked(playerId);
                 ProfileSnapshot profile = members.snapshot(discordId, achievements);
                 return "§6Core Builders §8» §fBalance: §a" + profile.credits()
-                        + " CC §8| §fCXP: §b" + profile.totalXp();
+                        + " coins §8| §fPoints: §b" + profile.totalXp();
             });
             case "leaderboard", "top" -> async(player, () -> formatLeaderboard(
                     ledger.leaderboardOverall(plugin.getConfig().getInt("minecraft.leaderboard-size", 10))));
@@ -145,7 +145,7 @@ public final class CoreCommand implements CommandExecutor, TabCompleter {
         for (LeaderboardEntry entry : entries) {
             out.append("\n§e#").append(position++)
                     .append(" §f").append(entry.username())
-                    .append(" §8- §b").append(entry.score()).append(" CXP");
+                    .append(" §8- §b").append(entry.score()).append(" points");
         }
         return out.toString();
     }
@@ -173,7 +173,7 @@ public final class CoreCommand implements CommandExecutor, TabCompleter {
         player.sendMessage("§6§lCore Builders Commands");
         player.sendMessage("§e/" + label + " login <code> §7- Verify a website login");
         player.sendMessage("§e/" + label + " profile §7- View your progression profile");
-        player.sendMessage("§e/" + label + " balance §7- View CXP and Core Credits");
+        player.sendMessage("§e/" + label + " balance §7- View points and coins");
         player.sendMessage("§e/" + label + " leaderboard §7- View the top contributors");
         player.sendMessage("§e/" + label + " link <code> §7- Link a Discord profile using the legacy Discord code");
         player.sendMessage("§e/" + label + " unlink §7- Remove your Minecraft link");

@@ -33,7 +33,7 @@ public final class DiscordViewFactory {
                 .map(task -> (task.status() == TaskStatus.COMPLETED ? "✅" : "⬜")
                         + " `" + task.id() + "` **" + task.title() + "**"
                         + (task.assignedDiscordId() == null ? "" : " — <@" + task.assignedDiscordId() + ">")
-                        + " (" + task.rewardCxp() + " CXP / " + task.rewardCredits() + " CC)")
+                        + " (" + task.rewardCxp() + " points / " + task.rewardCredits() + " coins)")
                 .collect(Collectors.joining("\n"));
         return new EmbedBuilder()
                 .setTitle(project.name())
@@ -63,7 +63,7 @@ public final class DiscordViewFactory {
                 .addField("Task ID", task.id().toString(), false)
                 .addField("Project ID", task.projectId().toString(), false)
                 .addField("Assignee", task.assignedDiscordId() == null ? "Unassigned" : "<@" + task.assignedDiscordId() + ">", true)
-                .addField("Reward", task.rewardCxp() + " CXP • " + task.rewardCredits() + " CC", true)
+                .addField("Reward", task.rewardCxp() + " points • " + task.rewardCredits() + " coins", true)
                 .build();
     }
 
@@ -74,7 +74,7 @@ public final class DiscordViewFactory {
                     return "**" + mission.name() + "** — `" + mission.id() + "`\n"
                             + mission.status() + " • " + summary.memberCount() + "/"
                             + (mission.maxSlots() == 0 ? "∞" : mission.maxSlots()) + " slots • "
-                            + mission.rewardCxp() + " CXP / " + mission.rewardCredits() + " CC";
+                            + mission.rewardCxp() + " points / " + mission.rewardCredits() + " coins";
                 })
                 .collect(Collectors.joining("\n\n"));
         return new EmbedBuilder()
@@ -90,7 +90,7 @@ public final class DiscordViewFactory {
                 .setTitle(mission.name())
                 .setDescription(mission.description())
                 .addField("Status", mission.status().name(), true)
-                .addField("Reward", mission.rewardCxp() + " CXP • " + mission.rewardCredits() + " CC", true)
+                .addField("Reward", mission.rewardCxp() + " points • " + mission.rewardCredits() + " coins", true)
                 .addField("Slots", participants.size() + " / " + (mission.maxSlots() == 0 ? "∞" : mission.maxSlots()), true)
                 .addField("Deadline", mission.deadline() == null ? "None" : mission.deadline().toString(), false)
                 .addField("Participants", truncate(people, 1024), false)
@@ -102,7 +102,7 @@ public final class DiscordViewFactory {
         return new EmbedBuilder()
                 .setTitle("Mission — " + mission.name())
                 .setDescription(mission.description())
-                .addField("Reward", mission.rewardCxp() + " CXP • " + mission.rewardCredits() + " CC", true)
+                .addField("Reward", mission.rewardCxp() + " points • " + mission.rewardCredits() + " coins", true)
                 .addField("Slots", mission.maxSlots() == 0 ? "Unlimited" : String.valueOf(mission.maxSlots()), true)
                 .addField("Deadline", mission.deadline() == null ? "None" : mission.deadline().toString(), false)
                 .addField("Mission ID", mission.id().toString(), false)
@@ -112,8 +112,8 @@ public final class DiscordViewFactory {
     public MessageEmbed pendingContributions(List<Contribution> contributions) {
         String body = contributions.stream()
                 .map(contribution -> "`" + contribution.id() + "`\n<@" + contribution.discordUserId() + "> • **"
-                        + contribution.category().display() + "** • " + contribution.suggestedCxp() + " CXP / "
-                        + contribution.suggestedCredits() + " CC\n" + truncate(contribution.description(), 180))
+                        + contribution.category().display() + "** • " + contribution.suggestedCxp() + " points / "
+                        + contribution.suggestedCredits() + " coins\n" + truncate(contribution.description(), 180))
                 .collect(Collectors.joining("\n\n"));
         return new EmbedBuilder()
                 .setTitle("Pending Contributions")
@@ -127,8 +127,8 @@ public final class DiscordViewFactory {
                 .setDescription(contribution.description())
                 .addField("Member", "<@" + contribution.discordUserId() + ">", true)
                 .addField("Category", contribution.category().display(), true)
-                .addField("Award", number(contribution.awardedCxp()) + " CXP • "
-                        + number(contribution.awardedCredits()) + " CC", true)
+                .addField("Award", number(contribution.awardedCxp()) + " points • "
+                        + number(contribution.awardedCredits()) + " coins", true)
                 .setFooter("Contribution ID: " + contribution.id())
                 .build();
     }
@@ -137,7 +137,7 @@ public final class DiscordViewFactory {
         return new EmbedBuilder()
                 .setTitle(title)
                 .addField("Item", order.itemName(), true)
-                .addField("Price", formatNumber(order.price()) + " CC", true)
+                .addField("Price", formatNumber(order.price()) + " coins", true)
                 .addField("Status", order.status().name(), true)
                 .addField("Order ID", order.id().toString(), false)
                 .addField("Note", value(order.fulfillmentNote()), false)
@@ -147,7 +147,7 @@ public final class DiscordViewFactory {
     public MessageEmbed orders(String title, List<ShopOrder> orders) {
         String body = orders.stream()
                 .map(order -> "`" + order.id() + "`\n<@" + order.discordUserId() + "> • **"
-                        + order.itemName() + "** • " + order.price() + " CC • " + order.status())
+                        + order.itemName() + "** • " + order.price() + " coins • " + order.status())
                 .collect(Collectors.joining("\n\n"));
         return new EmbedBuilder()
                 .setTitle(title)

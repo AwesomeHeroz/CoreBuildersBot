@@ -101,7 +101,7 @@ public final class CommandRegistrar {
                 .addSubcommands(
                         new SubcommandData("profile", "Show a Core Builders member profile.")
                                 .addOption(OptionType.USER, "member", "Member to view.", false),
-                        new SubcommandData("balance", "Show your Core Credit balance.")
+                        new SubcommandData("balance", "Show your coin balance.")
                                 .addOption(OptionType.USER, "member", "Member to view; staff only for other users.", false),
                         new SubcommandData("leaderboard", "Show Core Builders rankings.")
                                 .addOptions(leaderboardTypeOption()),
@@ -110,7 +110,7 @@ public final class CommandRegistrar {
                         new SubcommandData("link", "Generate a one-time code to link your Minecraft account."),
                         new SubcommandData("web-login", "Verify a one-time website login code through Discord.")
                                 .addOption(OptionType.STRING, "code", "Code shown on the Core Builders website.", true),
-                        new SubcommandData("transactions", "Show recent CXP and Core Credit transactions.")
+                        new SubcommandData("transactions", "Show recent points and coin transactions.")
                                 .addOption(OptionType.USER, "member", "Member to view; staff only for other users.", false)
                                 .addOption(OptionType.INTEGER, "limit", "Number of transactions, 1-25.", false),
                         new SubcommandData("stats", "Show overall Core Builders progression statistics."),
@@ -138,7 +138,7 @@ public final class CommandRegistrar {
 
         commands.add(Commands.slash("profile", "Show a Core Builders member profile.")
                 .addOption(OptionType.USER, "member", "Member to view.", false));
-        commands.add(Commands.slash("balance", "Show your Core Credit balance.")
+        commands.add(Commands.slash("balance", "Show your coin balance.")
                 .addOption(OptionType.USER, "member", "Member to view; staff only for other users.", false));
         commands.add(Commands.slash("leaderboard", "Show Core Builders rankings.")
                 .addOptions(leaderboardTypeOption()));
@@ -147,7 +147,7 @@ public final class CommandRegistrar {
         commands.add(Commands.slash("link", "Generate a one-time code to link your Minecraft account."));
 
         commands.add(Commands.slash("stats", "Show overall Core Builders progression statistics."));
-        commands.add(Commands.slash("transactions", "Show recent CXP and Core Credit transactions.")
+        commands.add(Commands.slash("transactions", "Show recent points and coin transactions.")
                 .addOption(OptionType.USER, "member", "Member to view; staff only for other users.", false)
                 .addOption(OptionType.INTEGER, "limit", "Number of transactions, 1-25.", false));
 
@@ -157,7 +157,7 @@ public final class CommandRegistrar {
                 .addOption(OptionType.STRING, "project", "Related project name.", false)
                 .addOption(OptionType.STRING, "evidence", "Screenshot/message URL or other evidence.", false));
 
-        commands.add(Commands.slash("shop", "Show the Core Credit shop."));
+        commands.add(Commands.slash("shop", "Show the coin shop."));
         commands.add(Commands.slash("buy", "Purchase a Core Builders shop item.")
                 .addOption(OptionType.STRING, "item", "Shop item code shown by /shop.", true));
 
@@ -198,8 +198,8 @@ public final class CommandRegistrar {
                         new SubcommandData("task-add", "Add a rewarded project task; staff only.")
                                 .addOption(OptionType.STRING, "project_id", "Project UUID.", true)
                                 .addOption(OptionType.STRING, "title", "Task title.", true)
-                                .addOption(OptionType.INTEGER, "cxp", "CXP reward.", true)
-                                .addOption(OptionType.INTEGER, "credits", "Core Credit reward.", true)
+                                .addOption(OptionType.INTEGER, "points", "Point reward.", true)
+                                .addOption(OptionType.INTEGER, "coins", "Coin reward.", true)
                                 .addOption(OptionType.USER, "assignee", "Assigned member.", false),
                         new SubcommandData("task-complete", "Complete a project task.")
                                 .addOption(OptionType.STRING, "project_id", "Project UUID.", true)
@@ -218,19 +218,19 @@ public final class CommandRegistrar {
                         new SubcommandData("create", "Create a mission; staff only.")
                                 .addOption(OptionType.STRING, "name", "Mission name.", true)
                                 .addOption(OptionType.STRING, "description", "Mission description.", true)
-                                .addOption(OptionType.INTEGER, "cxp", "CXP reward per participant.", true)
-                                .addOption(OptionType.INTEGER, "credits", "CC reward per participant.", true)
+                                .addOption(OptionType.INTEGER, "points", "Point reward per participant.", true)
+                                .addOption(OptionType.INTEGER, "coins", "Coin reward per participant.", true)
                                 .addOption(OptionType.INTEGER, "slots", "Maximum slots; 0 for unlimited.", true)
                                 .addOption(OptionType.INTEGER, "deadline_days", "Days until deadline; omit for none.", false),
                         new SubcommandData("complete", "Complete and reward a mission; staff only.")
                                 .addOption(OptionType.STRING, "id", "Mission UUID.", true)
                 ));
 
-        commands.add(Commands.slash("award", "Award CXP and Core Credits; staff only.")
+        commands.add(Commands.slash("award", "Award rank points and coins; staff only.")
                 .addOption(OptionType.USER, "member", "Member to reward.", true)
                 .addOptions(categoryOption("category", true))
-                .addOption(OptionType.INTEGER, "cxp", "CXP amount; may be zero.", true)
-                .addOption(OptionType.INTEGER, "credits", "Core Credit amount; may be zero.", true)
+                .addOption(OptionType.INTEGER, "points", "Point amount; may be zero.", true)
+                .addOption(OptionType.INTEGER, "coins", "Coin amount; may be zero.", true)
                 .addOption(OptionType.STRING, "reason", "Reason for the award.", true));
 
         commands.add(Commands.slash("contribution", "Review contribution submissions; staff only.")
@@ -238,24 +238,24 @@ public final class CommandRegistrar {
                         new SubcommandData("pending", "List pending submissions."),
                         new SubcommandData("approve", "Approve a submission.")
                                 .addOption(OptionType.STRING, "id", "Contribution UUID.", true)
-                                .addOption(OptionType.INTEGER, "cxp", "CXP reward; default uses suggestion.", false)
-                                .addOption(OptionType.INTEGER, "credits", "CC reward; default uses suggestion.", false)
+                                .addOption(OptionType.INTEGER, "points", "Point reward; default uses suggestion.", false)
+                                .addOption(OptionType.INTEGER, "coins", "Coin reward; default uses suggestion.", false)
                                 .addOption(OptionType.STRING, "reason", "Review note.", false),
                         new SubcommandData("reject", "Reject a submission.")
                                 .addOption(OptionType.STRING, "id", "Contribution UUID.", true)
                                 .addOption(OptionType.STRING, "reason", "Rejection reason.", true)
                 ));
 
-        commands.add(Commands.slash("xp", "Administrative CXP adjustments.")
+        commands.add(Commands.slash("points", "Administrative rank-point adjustments.")
                 .addSubcommands(
-                        adjustmentSubcommand("add", "Add CXP."),
-                        adjustmentSubcommand("remove", "Remove CXP.")
+                        adjustmentSubcommand("add", "Add points."),
+                        adjustmentSubcommand("remove", "Remove points.")
                 ));
 
-        commands.add(Commands.slash("credits", "Administrative Core Credit adjustments.")
+        commands.add(Commands.slash("coins", "Administrative coin adjustments.")
                 .addSubcommands(
-                        creditAdjustmentSubcommand("add", "Add Core Credits."),
-                        creditAdjustmentSubcommand("remove", "Remove Core Credits.")
+                        creditAdjustmentSubcommand("add", "Add coins."),
+                        creditAdjustmentSubcommand("remove", "Remove coins.")
                 ));
 
         SubcommandData reputationSet = new SubcommandData("set", "Set a member reputation; leadership only.")

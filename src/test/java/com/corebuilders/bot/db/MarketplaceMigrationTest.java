@@ -27,6 +27,18 @@ class MarketplaceMigrationTest {
     }
 
     @Test
+    void economyTerminologyMigrationUpdatesAchievementDescriptions() throws IOException {
+        try (var input = getClass().getResourceAsStream("/db/migration/V10__rename_economy_terms.sql")) {
+            assertNotNull(input);
+            String sql = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(sql.contains("Building points"));
+            assertTrue(sql.contains("Infrastructure points"));
+            assertTrue(sql.contains("lifetime points"));
+            assertTrue(sql.contains("WHERE code = 'CORE_LEGEND'"));
+        }
+    }
+
+    @Test
     void discordBotLoginMigrationStoresOnlyHashedOneTimeSecrets() throws IOException {
         try (var input = getClass().getResourceAsStream("/db/migration/V9__discord_bot_web_login.sql")) {
             assertNotNull(input);

@@ -68,8 +68,8 @@ public final class AchievementService {
                                 "ACHIEVEMENT_UNLOCKED", member.discordUserId(),
                                 "ACHIEVEMENT", achievement.code(),
                                 achievement.name() + " unlocked. Rewards: "
-                                        + achievement.rewardCxp() + " CXP, "
-                                        + achievement.rewardCredits() + " CC");
+                                        + achievement.rewardCxp() + " points, "
+                                        + achievement.rewardCredits() + " coins");
                     }
                 }
             } while (changed && ++safety < 20);

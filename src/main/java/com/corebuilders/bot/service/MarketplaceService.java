@@ -31,11 +31,11 @@ import static com.corebuilders.bot.service.MarketplaceStates.*;
 import static com.corebuilders.bot.service.MarketplaceValidation.*;
 
 /**
- * Transactional player-to-player marketplace backed by the existing contribution-points ledger.
+ * Transactional player-to-player marketplace backed by the existing coin ledger.
  *
  * One shop and one persistent cart are allowed per member. Checkout locks the buyer and every
  * product row in deterministic order, validates the complete cart, writes the order, holds
- * buyer points in escrow, decrements stock, and clears the cart in one database transaction.
+ * buyer coins in escrow, decrements stock, and clears the cart in one database transaction.
  */
 public final class MarketplaceService implements MarketplaceOperations, MarketplaceDisputeOperations {
     private static final int MAX_CART_LINES = 100;
@@ -516,7 +516,7 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                     .execute());
             touchCart(cartId);
             audit.log(actorDiscordId, "MARKETPLACE_CHECKOUT_HELD", actorDiscordId,
-                    "MARKETPLACE_ORDER", orderId.toString(), purchases.size() + " line(s), " + finalTotal + " points held");
+                    "MARKETPLACE_ORDER", orderId.toString(), purchases.size() + " line(s), " + finalTotal + " coins held");
             return requireOrder(orderId);
         });
     }

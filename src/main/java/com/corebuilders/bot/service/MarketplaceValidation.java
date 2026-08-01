@@ -20,7 +20,7 @@ public final class MarketplaceValidation {
             throw validation("Stock must be between 0 and 1,000,000.");
         }
         if (input.price() <= 0 || input.price() > 1_000_000_000L) {
-            throw validation("Price must be between 1 and 1,000,000,000 contribution points.");
+            throw validation("Price must be between 1 and 1,000,000,000 coins.");
         }
         String imageUrl = imagePolicy.validate(input.imageUrl());
         return new ItemInput(required(input.name(), "Item name", 2, 150),

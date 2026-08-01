@@ -27,7 +27,7 @@ public final class DiscordNotifier {
                                 .addField("Member", "<@" + c.discordUserId() + ">", true)
                                 .addField("Category", c.category().display(), true)
                                 .addField("Suggested Reward",
-                                        c.suggestedCxp() + " CXP • " + c.suggestedCredits() + " CC", true)
+                                        c.suggestedCxp() + " points • " + c.suggestedCredits() + " coins", true)
                                 .addField("Project", value(c.projectName()), false)
                                 .addField("Evidence", value(c.evidenceUrl()), false)
                                 .setFooter("Contribution ID: " + c.id())
@@ -47,7 +47,7 @@ public final class DiscordNotifier {
                         .addField("Member", "<@" + c.discordUserId() + ">", true)
                         .addField("Category", c.category().display(), true)
                         .addField("Reward",
-                                valueNumber(c.awardedCxp()) + " CXP • " + valueNumber(c.awardedCredits()) + " CC", true)
+                                valueNumber(c.awardedCxp()) + " points • " + valueNumber(c.awardedCredits()) + " coins", true)
                         .setDescription(c.description())
                         .setFooter("Contribution ID: " + c.id())
                         .build()).queue()
@@ -63,7 +63,7 @@ public final class DiscordNotifier {
                         .setDescription("<@" + discordUserId + "> unlocked **" + achievement.name() + "**")
                         .addField("Requirement", achievement.description(), false)
                         .addField("Reward",
-                                achievement.rewardCxp() + " CXP • " + achievement.rewardCredits() + " CC", false)
+                                achievement.rewardCxp() + " points • " + achievement.rewardCredits() + " coins", false)
                         .build()).queue();
             }
         });

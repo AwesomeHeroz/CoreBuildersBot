@@ -122,8 +122,8 @@ public final class DiscordBotListener extends ListenerAdapter {
                 .register("mission", this::mission)
                 .register("award", this::award)
                 .register("contribution", this::contributionReview)
-                .register("xp", this::xpAdjustment)
-                .register("credits", this::creditAdjustment)
+                .register("points", this::xpAdjustment)
+                .register("coins", this::creditAdjustment)
                 .register("reputation", this::reputation)
                 .register("member", this::memberManagement)
                 .register("audit", this::audit)
@@ -371,21 +371,21 @@ public final class DiscordBotListener extends ListenerAdapter {
         RankDefinition next = p.nextRank();
         String progress = next == null
                 ? "Maximum rank reached"
-                : p.totalXp() + " / " + next.minimumXp() + " CXP to " + next.display();
+                : p.totalXp() + " / " + next.minimumXp() + " points to " + next.display();
 
         EmbedBuilder eb = new EmbedBuilder()
                 .setTitle("Core Builders Profile — " + p.member().username())
                 .setDescription("**" + p.rank().display() + " • Level " + p.level() + "**\n" + progress)
-                .addField("Core XP", formatNumber(p.totalXp()) + " CXP", true)
-                .addField("Core Credits", formatNumber(p.credits()) + " CC", true)
-                .addField("Weekly XP", formatNumber(p.weeklyXp()) + " CXP", true)
+                .addField("Points", formatNumber(p.totalXp()) + " points", true)
+                .addField("Coins", formatNumber(p.credits()) + " coins", true)
+                .addField("Weekly points", formatNumber(p.weeklyXp()) + " points", true)
                 .addField("Reputation", p.member().reputation().display(), true)
                 .addField("Primary Role", value(p.member().primaryRole()), true)
                 .addBlankField(true);
 
         for (ContributionCategory category : visibleCategories()) {
             long amount = p.categoryXp().getOrDefault(category, 0L);
-            eb.addField(category.display(), formatNumber(amount) + " CXP", true);
+            eb.addField(category.display(), formatNumber(amount) + " points", true);
         }
 
         String unlocked = p.achievements().isEmpty()
@@ -408,9 +408,9 @@ public final class DiscordBotListener extends ListenerAdapter {
         Member member = members.ensureMember(target.getId(), target.getName());
         long balance = ledger.creditBalance(member.id());
         return new EmbedBuilder()
-                .setTitle("Core Credit Account")
+                .setTitle("Coin Account")
                 .setDescription("<@" + target.getId() + ">")
-                .addField("Current Balance", formatNumber(balance) + " CC", false)
+                .addField("Current Balance", formatNumber(balance) + " coins", false)
                 .build();
     }
 
@@ -439,9 +439,9 @@ public final class DiscordBotListener extends ListenerAdapter {
             LeaderboardEntry entry = entries.get(i);
             body.append(medal(i))
                     .append(" **").append(i + 1).append(".** <@").append(entry.discordUserId()).append(">")
-                    .append(" — **").append(formatNumber(entry.score())).append(" CXP**\n");
+                    .append(" — **").append(formatNumber(entry.score())).append(" points**\n");
         }
-        if (entries.isEmpty()) body.append("No members have earned CXP yet.");
+        if (entries.isEmpty()) body.append("No members have earned points yet.");
 
         return new EmbedBuilder()
                 .setTitle("🏆 " + title)
@@ -476,7 +476,7 @@ public final class DiscordBotListener extends ListenerAdapter {
         GroupStats stats = ledger.groupStats();
         List<LeaderboardEntry> leaders = ledger.leaderboardOverall(3);
         String top = leaders.isEmpty() ? "No ranked members yet." : leaders.stream()
-                .map(e -> "<@" + e.discordUserId() + "> — **" + formatNumber(e.score()) + " CXP**")
+                .map(e -> "<@" + e.discordUserId() + "> — **" + formatNumber(e.score()) + " points**")
                 .collect(Collectors.joining("\n"));
         return new EmbedBuilder()
                 .setTitle("Core Builders Statistics")
@@ -484,8 +484,8 @@ public final class DiscordBotListener extends ListenerAdapter {
                 .addField("Active This Week", formatNumber(stats.activeThisWeek()), true)
                 .addField("Approved Contributions", formatNumber(stats.approvedContributions()), true)
                 .addField("Projects", stats.completedProjects() + " / " + stats.totalProjects() + " completed", true)
-                .addField("Lifetime Net CXP", formatNumber(stats.totalCxpAwarded()), true)
-                .addField("CC in Circulation", formatNumber(stats.creditsInCirculation()), true)
+                .addField("Lifetime points", formatNumber(stats.totalCxpAwarded()), true)
+                .addField("Coins in Circulation", formatNumber(stats.creditsInCirculation()), true)
                 .addField("Top Contributors", top, false)
                 .build();
     }
@@ -531,7 +531,7 @@ public final class DiscordBotListener extends ListenerAdapter {
                 .setTitle("Contribution Submitted")
                 .setDescription("Your contribution is waiting for staff review.")
                 .addField("Category", c.category().display(), true)
-                .addField("Suggested Reward", c.suggestedCxp() + " CXP • " + c.suggestedCredits() + " CC", true)
+                .addField("Suggested Reward", c.suggestedCxp() + " points • " + c.suggestedCredits() + " coins", true)
                 .addField("Contribution ID", c.id().toString(), false)
                 .build();
     }
@@ -541,7 +541,7 @@ public final class DiscordBotListener extends ListenerAdapter {
         String body = items.stream()
                 .map(i -> "**" + i.code() + "** — " + i.name()
                         + "\n" + i.description()
-                        + "\n💰 " + formatNumber(i.price()) + " CC"
+                        + "\n💰 " + formatNumber(i.price()) + " coins"
                         + (i.stock() == null ? "" : " • Stock: " + i.stock()))
                 .collect(Collectors.joining("\n\n"));
         return new EmbedBuilder()
@@ -556,7 +556,7 @@ public final class DiscordBotListener extends ListenerAdapter {
         ShopOrder order = shop.buy(actor, requiredString(event, "item"));
         notifier.economyLog(event.getGuild(), "New Shop Order",
                 "<@" + actor.discordUserId() + "> purchased **" + order.itemName() + "** for "
-                        + formatNumber(order.price()) + " CC.\nOrder: `" + order.id() + "`");
+                        + formatNumber(order.price()) + " coins.\nOrder: `" + order.id() + "`");
         return views.order("Purchase Successful", order);
     }
 
@@ -599,7 +599,7 @@ public final class DiscordBotListener extends ListenerAdapter {
                 permissions.requireTrustedStaff(event.getMember());
                 List<MarketplaceOrderLine> disputes = marketplaceDisputes.disputes(20);
                 String body = disputes.stream()
-                        .map(line -> "**" + line.itemName() + "** — " + formatNumber(line.lineTotal()) + " CC"
+                        .map(line -> "**" + line.itemName() + "** — " + formatNumber(line.lineTotal()) + " coins"
                                 + "\nBuyer: " + line.buyerUsername()
                                 + "\nLine: `" + line.id() + "`"
                                 + "\nReason: " + value(line.disputeReason()))
@@ -622,7 +622,7 @@ public final class DiscordBotListener extends ListenerAdapter {
                         .setDescription("**" + line.itemName() + "** was resolved as **"
                                 + value(line.resolution()).replace('_', ' ') + "**.")
                         .addField("Line ID", line.id().toString(), false)
-                        .addField("Amount", formatNumber(line.lineTotal()) + " CC", true)
+                        .addField("Amount", formatNumber(line.lineTotal()) + " coins", true)
                         .addField("Reason", value(line.resolutionNote()), false)
                         .build();
             }
@@ -669,8 +669,8 @@ public final class DiscordBotListener extends ListenerAdapter {
                         projectId,
                         requiredString(event, "title"),
                         assignee,
-                        requiredLong(event, "cxp"),
-                        requiredLong(event, "credits"),
+                        requiredLong(event, "points"),
+                        requiredLong(event, "coins"),
                         event.getUser().getId()
                 );
                 yield views.projectTask(task);
@@ -721,8 +721,8 @@ public final class DiscordBotListener extends ListenerAdapter {
                 Mission created = missions.create(
                         requiredString(event, "name"),
                         requiredString(event, "description"),
-                        requiredLong(event, "cxp"),
-                        requiredLong(event, "credits"),
+                        requiredLong(event, "points"),
+                        requiredLong(event, "coins"),
                         Math.toIntExact(requiredLong(event, "slots")),
                         deadline,
                         event.getUser().getId()
@@ -741,7 +741,7 @@ public final class DiscordBotListener extends ListenerAdapter {
                 }
                 yield views.simple("Mission Completed",
                         "**" + mission.name() + "** rewarded " + rewarded.size() + " participant(s) with "
-                                + mission.rewardCxp() + " CXP and " + mission.rewardCredits() + " CC each.");
+                                + mission.rewardCxp() + " points and " + mission.rewardCredits() + " coins each.");
             }
             default -> throw new IllegalArgumentException("Unknown mission action.");
         };
@@ -752,26 +752,26 @@ public final class DiscordBotListener extends ListenerAdapter {
         User targetUser = requiredUser(event, "member");
         Member target = members.ensureMember(targetUser.getId(), targetUser.getName());
         ContributionCategory category = ContributionCategory.parse(requiredString(event, "category"));
-        long cxp = requiredLong(event, "cxp");
-        long credits = requiredLong(event, "credits");
+        long cxp = requiredLong(event, "points");
+        long credits = requiredLong(event, "coins");
         String reason = requiredString(event, "reason");
-        if (cxp < 0 || credits < 0) throw new IllegalArgumentException("Use /xp remove or /credits remove for deductions.");
+        if (cxp < 0 || credits < 0) throw new IllegalArgumentException("Use /points remove or /coins remove for deductions.");
         if (cxp == 0 && credits == 0) throw new IllegalArgumentException("At least one reward must be greater than zero.");
 
         if (cxp > 0) ledger.addXp(target.id(), cxp, category, SourceType.STAFF_AWARD, null, reason, event.getUser().getId());
         if (credits > 0) ledger.addCredits(target.id(), credits, SourceType.STAFF_AWARD, null, reason, event.getUser().getId());
         audit.log(event.getUser().getId(), "STAFF_AWARD", target.discordUserId(),
-                "MEMBER", target.id().toString(), cxp + " CXP, " + credits + " CC. " + reason);
+                "MEMBER", target.id().toString(), cxp + " points, " + credits + " coins. " + reason);
 
         List<Achievement> unlocked = achievements.evaluate(target, event.getUser().getId());
         rankRoles.sync(event.getGuild(), target.discordUserId());
         notifier.achievements(event.getGuild(), target.discordUserId(), unlocked);
         notifier.economyLog(event.getGuild(), "Member Reward",
-                "<@" + target.discordUserId() + "> received **" + cxp + " CXP** and **"
-                        + credits + " CC**.\nReason: " + reason);
+                "<@" + target.discordUserId() + "> received **" + cxp + " points** and **"
+                        + credits + " coins**.\nReason: " + reason);
 
         return views.simple("Award Applied",
-                "<@" + target.discordUserId() + "> received **" + cxp + " CXP** and **" + credits + " CC**.");
+                "<@" + target.discordUserId() + "> received **" + cxp + " points** and **" + credits + " coins**.");
     }
 
     private MessageEmbed contributionReview(SlashCommandInteractionEvent event) {
@@ -782,8 +782,8 @@ public final class DiscordBotListener extends ListenerAdapter {
             case "approve" -> {
                 UUID id = uuid(requiredString(event, "id"), "contribution ID");
                 Contribution pending = contributions.get(id);
-                Long cxpOption = nullableLong(event, "cxp");
-                Long creditOption = nullableLong(event, "credits");
+                Long cxpOption = nullableLong(event, "points");
+                Long creditOption = nullableLong(event, "coins");
                 Contribution result = contributions.approve(
                         id,
                         cxpOption == null ? pending.suggestedCxp() : cxpOption,
@@ -818,7 +818,7 @@ public final class DiscordBotListener extends ListenerAdapter {
         String reason = requiredString(event, "reason");
         long signed = "remove".equals(sub) ? -amount : amount;
         if (signed < 0 && ledger.totalXp(target.id()) < amount) {
-            throw new IllegalStateException("This would reduce the member below 0 total CXP.");
+            throw new IllegalStateException("This would reduce the member below 0 total points.");
         }
 
         if (signed < 0) {
@@ -829,13 +829,13 @@ public final class DiscordBotListener extends ListenerAdapter {
                     null, reason, event.getUser().getId());
         }
         audit.log(event.getUser().getId(), "XP_" + sub.toUpperCase(Locale.ROOT), target.discordUserId(),
-                "MEMBER", target.id().toString(), signed + " CXP. " + reason);
+                "MEMBER", target.id().toString(), signed + " points. " + reason);
 
         List<Achievement> unlocked = signed > 0 ? achievements.evaluate(target, event.getUser().getId()) : List.of();
         rankRoles.sync(event.getGuild(), target.discordUserId());
         notifier.achievements(event.getGuild(), target.discordUserId(), unlocked);
-        return views.simple("CXP Adjustment Applied",
-                "<@" + target.discordUserId() + "> " + (signed > 0 ? "+" : "") + signed + " CXP.");
+        return views.simple("Point Adjustment Applied",
+                "<@" + target.discordUserId() + "> " + (signed > 0 ? "+" : "") + signed + " points.");
     }
 
     private MessageEmbed creditAdjustment(SlashCommandInteractionEvent event) {
@@ -848,7 +848,7 @@ public final class DiscordBotListener extends ListenerAdapter {
         String reason = requiredString(event, "reason");
         long signed = "remove".equals(sub) ? -amount : amount;
         if (signed < 0 && ledger.creditBalance(target.id()) < amount) {
-            throw new IllegalStateException("This would reduce the member below 0 Core Credits.");
+            throw new IllegalStateException("This would reduce the member below 0 coins.");
         }
 
         if (signed < 0) {
@@ -859,11 +859,11 @@ public final class DiscordBotListener extends ListenerAdapter {
                     null, reason, event.getUser().getId());
         }
         audit.log(event.getUser().getId(), "CREDITS_" + sub.toUpperCase(Locale.ROOT), target.discordUserId(),
-                "MEMBER", target.id().toString(), signed + " CC. " + reason);
-        notifier.economyLog(event.getGuild(), "Core Credit Adjustment",
-                "<@" + target.discordUserId() + "> " + (signed > 0 ? "+" : "") + signed + " CC.\nReason: " + reason);
-        return views.simple("Core Credit Adjustment Applied",
-                "<@" + target.discordUserId() + "> " + (signed > 0 ? "+" : "") + signed + " CC.");
+                "MEMBER", target.id().toString(), signed + " coins. " + reason);
+        notifier.economyLog(event.getGuild(), "Coin Adjustment",
+                "<@" + target.discordUserId() + "> " + (signed > 0 ? "+" : "") + signed + " coins.\nReason: " + reason);
+        return views.simple("Coin Adjustment Applied",
+                "<@" + target.discordUserId() + "> " + (signed > 0 ? "+" : "") + signed + " coins.");
     }
 
     private MessageEmbed reputation(SlashCommandInteractionEvent event) {

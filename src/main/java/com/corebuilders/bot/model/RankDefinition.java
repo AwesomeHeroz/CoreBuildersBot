@@ -21,7 +21,7 @@ public record RankDefinition(
             throw new IllegalArgumentException("Rank display name cannot exceed 100 characters: " + display);
         }
         if (minimumXp < 0) {
-            throw new IllegalArgumentException("Rank minimum XP cannot be negative: " + code);
+            throw new IllegalArgumentException("Rank minimum points cannot be negative: " + code);
         }
         if (discordRoleId != null && !discordRoleId.matches("\\d{15,22}")) {
             throw new IllegalArgumentException("Rank discord-role-id must be a Discord role ID: " + code);
