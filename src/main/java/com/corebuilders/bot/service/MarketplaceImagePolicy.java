@@ -35,9 +35,6 @@ public final class MarketplaceImagePolicy implements MarketplaceListingImagePoli
         try {
             URI uri = new URI(value.trim());
             String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
-            if (uri.getRawUserInfo() != null || uri.getRawFragment() != null || uri.getRawQuery() != null) {
-                throw validation("Image URLs cannot contain credentials, queries, or fragments.");
-            }
             if (isUploadedImage(uri)) return uri.toASCIIString();
             if (!"https".equalsIgnoreCase(uri.getScheme()) || host.isBlank()) {
                 throw validation("Images must use an approved HTTPS host.");
