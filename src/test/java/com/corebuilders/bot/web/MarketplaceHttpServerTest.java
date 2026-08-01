@@ -17,14 +17,19 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,6 +62,8 @@ class MarketplaceHttpServerTest {
     private AtomicBoolean discordLinked;
     private MarketplaceHttpServer server;
     private URI baseUri;
+    @TempDir
+    Path uploadDirectory;
 
     @BeforeEach
     void startServer() throws Exception {
@@ -76,6 +83,9 @@ class MarketplaceHttpServerTest {
                 1024 * 1024,
                 4,
                 Set.of("example.com"),
+                uploadDirectory,
+                "/uploads/images",
+                5 * 1024 * 1024,
                 false,
                 "", ""
         );
@@ -323,6 +333,44 @@ class MarketplaceHttpServerTest {
         Response me = request("GET", "/api/auth/me", "core_session=" + session, null, null);
         assertTrue(me.json().path("authenticated").asBoolean());
         assertEquals("123456789012345678", me.json().path("user").path("discordUserId").asText());
+    }
+
+    @Test
+    void uploadsImagesWithMultipartAndServesThemFromThePublicPath() throws Exception {
+        Login login = linkDiscord(login());
+        Response shop = request("POST", "/api/me/shop", login.sessionCookie(), login.csrfToken(),
+                "{\"name\":\"Builder Shop\",\"description\":\"Uploaded images\"}");
+        assertEquals(201, shop.status());
+
+        byte[] png = Base64.getDecoder().decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZP4sAAAAASUVORK5CYII=");
+        String boundary = "CoreBuildersUploadBoundary";
+        ByteArrayOutputStream multipart = new ByteArrayOutputStream();
+        multipart.write(("--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"image\"; filename=\"listing.png\"\r\n"
+                + "Content-Type: image/png\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+        multipart.write(png);
+        multipart.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.US_ASCII));
+
+        HttpRequest upload = HttpRequest.newBuilder(baseUri.resolve("/api/me/shop/images"))
+                .header("Cookie", login.sessionCookie())
+                .header("X-CSRF-Token", login.csrfToken())
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(multipart.toByteArray()))
+                .build();
+        HttpResponse<String> uploadResponse = client.send(upload, HttpResponse.BodyHandlers.ofString());
+        assertEquals(201, uploadResponse.statusCode(), uploadResponse.body());
+        JsonNode payload = mapper.readTree(uploadResponse.body());
+        assertEquals("image/png", payload.path("contentType").asText());
+        URI publicUrl = URI.create(payload.path("url").asText());
+        assertTrue(publicUrl.getPath().startsWith("/uploads/images/" + MEMBER_ID + "/"));
+
+        HttpResponse<byte[]> imageResponse = client.send(
+                HttpRequest.newBuilder(baseUri.resolve(publicUrl.getPath())).GET().build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, imageResponse.statusCode());
+        assertEquals("image/png", imageResponse.headers().firstValue("Content-Type").orElseThrow());
+        assertArrayEquals(png, imageResponse.body());
     }
 
     private Login login() throws Exception {

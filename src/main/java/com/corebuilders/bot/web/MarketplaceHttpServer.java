@@ -26,6 +26,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -58,6 +59,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     private final MarketplaceShopManagementOperations shopManagement;
     private final MarketplaceCartOperations carts;
     private final MarketplaceOrderOperations orders;
+    private final MarketplaceImageStorage imageStorage;
     private final Logger logger;
     private final WebSessionStore sessions;
     private final OAuthStateStore states;
@@ -65,6 +67,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     private final RequestRateLimiter loginCompletionLimiter;
     private final RequestRateLimiter publicReadLimiter;
     private final RequestRateLimiter authenticatedMutationLimiter;
+    private final RequestRateLimiter imageUploadLimiter;
     private final HttpServer server;
     private final ExecutorService executor;
 
@@ -147,6 +150,8 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         this.shopManagement = java.util.Objects.requireNonNull(shopManagement, "shopManagement");
         this.carts = java.util.Objects.requireNonNull(carts, "carts");
         this.orders = java.util.Objects.requireNonNull(orders, "orders");
+        this.imageStorage = new MarketplaceImageStorage(
+                config.imageUploadDirectory(), config.imagePublicBaseUrl(), config.maxImageUploadBytes());
         this.logger = logger;
         this.sessions = new WebSessionStore(config.sessionLifetime(), config.idleSessionLifetime());
         this.states = new OAuthStateStore();
@@ -154,6 +159,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         this.loginCompletionLimiter = new RequestRateLimiter(Duration.ZERO, 600, Duration.ofMinutes(1));
         this.publicReadLimiter = new RequestRateLimiter(Duration.ZERO, 1200, Duration.ofMinutes(1));
         this.authenticatedMutationLimiter = new RequestRateLimiter(Duration.ZERO, 600, Duration.ofMinutes(1));
+        this.imageUploadLimiter = new RequestRateLimiter(Duration.ofSeconds(2), 300, Duration.ofMinutes(1));
         this.server = HttpServer.create(new InetSocketAddress(config.bindAddress(), config.port()), 0);
         this.executor = Executors.newFixedThreadPool(config.workerThreads(), daemonThreads("core-marketplace-http"));
         this.server.setExecutor(executor);
@@ -228,6 +234,8 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         } catch (OAuthException error) {
             sendProblem(exchange, error.code() == OAuthException.Code.NOT_IN_GUILD ? 403 : 502,
                     error.code().name().toLowerCase(Locale.ROOT), error.getMessage());
+        } catch (MarketplaceImageStorage.ImageTooLargeException error) {
+            sendProblem(exchange, 413, "image_too_large", error.getMessage());
         } catch (IllegalArgumentException error) {
             sendProblem(exchange, 400, "invalid_request", safeMessage(error, "Invalid request."));
         } catch (IllegalStateException error) {
@@ -362,6 +370,15 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         if (path.equals("/api/me/shop") && method.equals("PUT")) {
             requireCsrf(exchange, session);
             sendJson(exchange, 200, shopManagement.updateShop(principal.memberId(), readJson(exchange, ShopInput.class)));
+            return;
+        }
+        if (path.equals("/api/me/shop/images") && method.equals("POST")) {
+            requireCsrf(exchange, session);
+            requireRateLimit(exchange, imageUploadLimiter, "image-upload:" + principal.memberId());
+            if (shopManagement.findShopByOwner(principal.memberId()).isEmpty()) {
+                throw new HttpStatusException(409, "shop_required", "Create your shop before uploading listing images.");
+            }
+            uploadMarketplaceImage(exchange, principal.memberId());
             return;
         }
         if (path.equals("/api/me/shop/items") && method.equals("POST")) {
@@ -606,10 +623,31 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         }
     }
 
+    private void uploadMarketplaceImage(HttpExchange exchange, UUID memberId) throws IOException {
+        String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
+        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("multipart/form-data")) {
+            throw new HttpStatusException(415, "unsupported_media_type", "Use multipart/form-data.");
+        }
+        int requestLimit = config.maxImageUploadBytes() + 65_536;
+        byte[] body = readLimited(exchange.getRequestBody(), requestLimit);
+        MultipartFormData.FilePart upload = MultipartFormData.requireFile(body, contentType, "image");
+        MarketplaceImageStorage.StoredImage stored = imageStorage.store(memberId, upload);
+        sendJson(exchange, 201, new ImageUploadPayload(stored.url(), stored.contentType(), stored.size()));
+    }
+
     private void serveStatic(HttpExchange exchange, String path) throws IOException {
         String method = exchange.getRequestMethod().toUpperCase(Locale.ROOT);
         if (!(method.equals("GET") || method.equals("HEAD"))) {
             sendProblem(exchange, 405, "method_not_allowed", "Static files support GET and HEAD only.");
+            return;
+        }
+        String uploadPrefix = config.imagePublicPath() + "/";
+        if (path.equals(config.imagePublicPath())) {
+            sendProblem(exchange, 404, "not_found", "Uploaded image not found.");
+            return;
+        }
+        if (path.startsWith(uploadPrefix)) {
+            serveUploadedImage(exchange, method, path.substring(uploadPrefix.length()));
             return;
         }
         String resource = switch (path) {
@@ -636,6 +674,27 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         }
         exchange.sendResponseHeaders(200, bytes.length);
         exchange.getResponseBody().write(bytes);
+    }
+
+    private void serveUploadedImage(HttpExchange exchange, String method, String relativePath) throws IOException {
+        Optional<MarketplaceImageStorage.StoredFile> resolved = imageStorage.resolve(relativePath);
+        if (resolved.isEmpty()) {
+            sendProblem(exchange, 404, "not_found", "Uploaded image not found.");
+            return;
+        }
+        MarketplaceImageStorage.StoredFile file = resolved.get();
+        Headers headers = exchange.getResponseHeaders();
+        headers.set("Content-Type", file.contentType());
+        headers.set("Cache-Control", "public, max-age=31536000, immutable");
+        headers.set("Content-Length", Long.toString(file.size()));
+        if (method.equals("HEAD")) {
+            exchange.sendResponseHeaders(200, -1);
+            return;
+        }
+        exchange.sendResponseHeaders(200, file.size());
+        try (InputStream input = Files.newInputStream(file.path())) {
+            input.transferTo(exchange.getResponseBody());
+        }
     }
 
     private void sendJson(HttpExchange exchange, int status, Object value) throws IOException {
@@ -865,6 +924,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
                               String category, boolean active, long version, boolean ownedByCurrentUser,
                               java.time.Instant createdAt, java.time.Instant updatedAt) {}
     private record PublicItemPage(List<PublicItem> items, int page, int pageSize, long total) {}
+    private record ImageUploadPayload(String url, String contentType, int size) {}
     private record MePayload(boolean authenticated, SessionPrincipal user, long balance, String csrfToken) {}
     private record Problem(String code, String message) {}
     private record ProblemPayload(Problem error) {}

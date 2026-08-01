@@ -5,6 +5,7 @@ import com.corebuilders.bot.model.MarketplaceModels.ItemInput;
 import com.corebuilders.bot.model.MarketplaceModels.ShopInput;
 import org.junit.jupiter.api.Test;
 
+import java.net.URI;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -33,6 +34,18 @@ class MarketplaceValidationTest {
         assertThrows(MarketplaceException.class, () -> MarketplaceValidation.item(
                 new ItemInput("Item", "Description", null, -1, 10, "Kits", true), IMAGES));
         assertThrows(MarketplaceException.class, () -> MarketplaceValidation.quantity(0));
+    }
+
+    @Test
+    void acceptsOnlyTheConfiguredSameOriginUploadPath() {
+        MarketplaceImagePolicy images = new MarketplaceImagePolicy(
+                Set.of(), URI.create("http://127.0.0.1:8080/uploads/images/"));
+        String valid = "http://127.0.0.1:8080/uploads/images/00000000-0000-0000-0000-000000000001/0123456789abcdef0123456789abcdef.png";
+        assertEquals(valid, images.validate(valid));
+        assertThrows(MarketplaceException.class,
+                () -> images.validate("http://127.0.0.1:8080/uploads/other/00000000-0000-0000-0000-000000000001/0123456789abcdef0123456789abcdef.png"));
+        assertThrows(MarketplaceException.class,
+                () -> images.validate("http://127.0.0.1:8081/uploads/images/00000000-0000-0000-0000-000000000001/0123456789abcdef0123456789abcdef.png"));
     }
     @Test
     void parsesOnlyExplicitDisputeResolutions() {

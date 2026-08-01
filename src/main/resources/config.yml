@@ -256,9 +256,16 @@ website:
   max-request-bytes: 1048576
 
   marketplace:
-    # Listing images are disabled unless their HTTPS host is explicitly trusted here.
+    # Optional external listing images are disabled unless their HTTPS host is explicitly trusted here.
     # Do not add localhost, private network hosts, or arbitrary user-controlled image proxies.
     allowed-image-hosts: []
+    image-uploads:
+      # Uploaded files are stored outside the plugin JAR. Relative paths use the server working directory.
+      directory: "plugins/CoreBuilders/uploads/images"
+      # Public route used to serve uploaded images. Saved listing links are built from public-base-url + this path.
+      public-path: "/uploads/images"
+      # Maximum size of one PNG, JPEG, or GIF image (default 5 MiB, hard maximum 10 MiB).
+      max-file-bytes: 5242880
 
   discord-oauth:
     client-id: "" # Prefer COREBOT_DISCORD_OAUTH_CLIENT_ID

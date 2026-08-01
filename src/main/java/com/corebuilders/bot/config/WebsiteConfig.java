@@ -3,6 +3,7 @@ package com.corebuilders.bot.config;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -24,6 +25,9 @@ public record WebsiteConfig(
         int maxRequestBytes,
         int workerThreads,
         Set<String> allowedImageHosts,
+        Path imageUploadDirectory,
+        String imagePublicPath,
+        int maxImageUploadBytes,
         boolean proxyCustomAuth,
         String originHeaderName,
         String originHeaderSecret
@@ -34,6 +38,10 @@ public record WebsiteConfig(
 
     public WebsiteConfig {
         allowedImageHosts = allowedImageHosts == null ? Set.of() : Set.copyOf(allowedImageHosts);
+        imageUploadDirectory = imageUploadDirectory == null
+                ? Path.of("plugins", "CoreBuilders", "uploads", "images").toAbsolutePath().normalize()
+                : imageUploadDirectory.toAbsolutePath().normalize();
+        imagePublicPath = validateImagePublicPath(imagePublicPath);
     }
 
     public static WebsiteConfig from(FileConfiguration config) {
@@ -56,6 +64,16 @@ public record WebsiteConfig(
         int workers = integer("COREBOT_WEB_WORKER_THREADS",
                 config.getInt("website.worker-threads", 16), 2, 256, "website.worker-threads");
         Set<String> imageHosts = allowedHosts(config.getStringList("website.marketplace.allowed-image-hosts"));
+        String imageDirectoryValue = value("COREBOT_IMAGE_UPLOAD_DIRECTORY",
+                config.getString("website.marketplace.image-uploads.directory",
+                        "plugins/CoreBuilders/uploads/images"));
+        if (imageDirectoryValue.isBlank()) imageDirectoryValue = "plugins/CoreBuilders/uploads/images";
+        Path imageDirectory = Path.of(imageDirectoryValue).toAbsolutePath().normalize();
+        String imagePublicPath = validateImagePublicPath(value("COREBOT_IMAGE_PUBLIC_PATH",
+                config.getString("website.marketplace.image-uploads.public-path", "/uploads/images")));
+        int maxImageBytes = integer("COREBOT_MAX_IMAGE_UPLOAD_BYTES",
+                config.getInt("website.marketplace.image-uploads.max-file-bytes", 5_242_880),
+                1024, 10_485_760, "website.marketplace.image-uploads.max-file-bytes");
 
         boolean proxyCustomAuth = config.getBoolean("website.origin-auth.enabled", false);
 
@@ -82,7 +100,8 @@ public record WebsiteConfig(
         if (!enabled) {
             return new WebsiteConfig(false, bind, port, base, clientId, clientSecret, callback,
                     requireGuild, secure, Duration.ofHours(sessionHours), Duration.ofMinutes(idleMinutes),
-                    maxBytes, workers, imageHosts, proxyCustomAuth, originHeaderName, originHeaderSecret);
+                    maxBytes, workers, imageHosts, imageDirectory, imagePublicPath, maxImageBytes,
+                    proxyCustomAuth, originHeaderName, originHeaderSecret);
         }
 
         if (bind.isBlank()) bind = DEFAULT_BIND;
@@ -102,7 +121,12 @@ public record WebsiteConfig(
                 "website.discord-oauth.client-secret / COREBOT_DISCORD_OAUTH_CLIENT_SECRET");
         return new WebsiteConfig(true, bind, port, base, cleanClientId, cleanSecret, callback,
                 requireGuild, secure, Duration.ofHours(sessionHours), Duration.ofMinutes(idleMinutes),
-                maxBytes, workers, imageHosts, proxyCustomAuth, originHeaderName, originHeaderSecret);
+                maxBytes, workers, imageHosts, imageDirectory, imagePublicPath, maxImageBytes,
+                proxyCustomAuth, originHeaderName, originHeaderSecret);
+    }
+
+    public URI imagePublicBaseUrl() {
+        return URI.create(publicBaseUrl.toString() + imagePublicPath + "/");
     }
 
     private static URI canonicalCallback(URI publicBaseUrl) {
@@ -193,6 +217,20 @@ public record WebsiteConfig(
             hosts.add(host);
         }
         return Set.copyOf(hosts);
+    }
+
+    private static String validateImagePublicPath(String configured) {
+        String path = configured == null || configured.isBlank() ? "/uploads/images" : configured.trim();
+        if (!path.startsWith("/") || path.endsWith("/") || path.contains("..")
+                || !path.matches("/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*")) {
+            throw new IllegalStateException(
+                    "website.marketplace.image-uploads.public-path must be a clean absolute path without a trailing slash."
+            );
+        }
+        if (path.equals("/api") || path.startsWith("/api/")) {
+            throw new IllegalStateException("Image upload public path cannot overlap /api.");
+        }
+        return path;
     }
 
     private static boolean isValidDnsName(String host) {

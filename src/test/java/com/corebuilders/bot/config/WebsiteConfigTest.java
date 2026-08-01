@@ -3,6 +3,8 @@ package com.corebuilders.bot.config;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class WebsiteConfigTest {
@@ -30,6 +32,9 @@ class WebsiteConfigTest {
         assertEquals("https://shop.example.com", config.publicBaseUrl().toString());
         assertEquals("https://shop.example.com/api/account/discord/callback", config.oauthRedirectUri().toString());
         assertTrue(config.secureCookies());
+        assertEquals("/uploads/images", config.imagePublicPath());
+        assertEquals("https://shop.example.com/uploads/images/", config.imagePublicBaseUrl().toString());
+        assertEquals(5_242_880, config.maxImageUploadBytes());
     }
 
     @Test
@@ -146,6 +151,35 @@ class WebsiteConfigTest {
         assertEquals(java.util.Set.of("cdn.example.com"), config.allowedImageHosts());
 
         yaml.set("website.marketplace.allowed-image-hosts", java.util.List.of("10.0.0.1"));
+        assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
+    }
+
+    @Test
+    void parsesImageUploadDirectoryPathAndLimit() {
+        YamlConfiguration yaml = enabled("https://shop.example.com", true);
+        yaml.set("website.marketplace.image-uploads.directory", "build/custom-marketplace-images");
+        yaml.set("website.marketplace.image-uploads.public-path", "/media/listings");
+        yaml.set("website.marketplace.image-uploads.max-file-bytes", 2_000_000);
+
+        WebsiteConfig config = WebsiteConfig.from(yaml);
+
+        assertEquals(Path.of("build/custom-marketplace-images").toAbsolutePath().normalize(),
+                config.imageUploadDirectory());
+        assertEquals("/media/listings", config.imagePublicPath());
+        assertEquals("https://shop.example.com/media/listings/", config.imagePublicBaseUrl().toString());
+        assertEquals(2_000_000, config.maxImageUploadBytes());
+    }
+
+    @Test
+    void rejectsUnsafeImagePublicPaths() {
+        YamlConfiguration yaml = enabled("https://shop.example.com", true);
+        yaml.set("website.marketplace.image-uploads.public-path", "/api/images");
+        assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
+
+        yaml.set("website.marketplace.image-uploads.public-path", "/uploads/../images");
+        assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
+
+        yaml.set("website.marketplace.image-uploads.public-path", "uploads/images");
         assertThrows(IllegalStateException.class, () -> WebsiteConfig.from(yaml));
     }
 

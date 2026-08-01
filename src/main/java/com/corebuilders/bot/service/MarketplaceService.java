@@ -7,6 +7,7 @@ import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
 
 import java.time.Instant;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -52,9 +53,14 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
 
     public MarketplaceService(QueryDslDatabase database, LedgerService ledger, AuditService audit,
                               Set<String> allowedImageHosts) {
+        this(database, ledger, audit, allowedImageHosts, null);
+    }
+
+    public MarketplaceService(QueryDslDatabase database, LedgerService ledger, AuditService audit,
+                              Set<String> allowedImageHosts, URI uploadedImageBase) {
         this(database, ledger, audit,
                 new MarketplaceAuthorizer(database),
-                new MarketplaceImagePolicy(allowedImageHosts),
+                new MarketplaceImagePolicy(allowedImageHosts, uploadedImageBase),
                 new QueryDslMarketplaceActorDirectory(database));
     }
 

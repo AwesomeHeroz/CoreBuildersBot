@@ -123,7 +123,8 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             MissionService missions = new MissionService(database, ledger, audit);
             ShopService shop = new ShopService(database, ledger, audit);
             MarketplaceService marketplace = new MarketplaceService(
-                    database, ledger, audit, websiteConfig.allowedImageHosts());
+                    database, ledger, audit, websiteConfig.allowedImageHosts(),
+                    websiteConfig.enabled() ? websiteConfig.imagePublicBaseUrl() : null);
             ShopService.CatalogSyncResult shopSync = shop.synchronizeCatalog(shopCatalog);
             plugin.getLogger().info("Shop catalog synchronized: " + shopSync.inserted() + " inserted, "
                     + shopSync.updated() + " updated, " + shopSync.disabled() + " disabled.");

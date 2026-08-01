@@ -227,3 +227,27 @@ body.modal-open { overflow: hidden; }
   .modal-actions { flex-direction: column-reverse; }
   .modal-actions .button { width: 100%; }
 }
+
+.field-help { color: var(--muted); font-weight: 400; }
+.upload-preview {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #0c1119;
+}
+.upload-preview img {
+  width: 112px;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #242b3b, #111620);
+}
+.upload-preview > div { display: grid; gap: 6px; justify-items: start; }
+@media (max-width: 520px) {
+  .upload-preview { grid-template-columns: 84px 1fr; }
+  .upload-preview img { width: 84px; }
+}

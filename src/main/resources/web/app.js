@@ -20,6 +20,7 @@ const fallbackImage = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const jq = window.jQuery;
+let itemPreviewObjectUrl = null;
 
 function requireJQuery() {
   if (!jq) throw new Error('The website modal library could not be loaded. Refresh the page and try again.');
@@ -249,6 +250,79 @@ async function api(path, options = {}) {
     throw error;
   }
   return data;
+}
+
+function uploadListingImage(file) {
+  const $jq = requireJQuery();
+  const data = new FormData();
+  data.append('image', file, file.name);
+  $('#item-image-upload-status').textContent = 'Uploading image…';
+
+  return new Promise((resolve, reject) => {
+    $jq.ajax({
+      url: '/api/me/shop/images',
+      method: 'POST',
+      data,
+      processData: false,
+      contentType: false,
+      dataType: 'json',
+      headers: {
+        Accept: 'application/json',
+        'X-CSRF-Token': state.csrf || ''
+      },
+      xhr() {
+        const xhr = $jq.ajaxSettings.xhr();
+        if (xhr.upload) {
+          xhr.upload.addEventListener('progress', (event) => {
+            if (!event.lengthComputable) return;
+            const percent = Math.max(1, Math.round((event.loaded / event.total) * 100));
+            $('#item-image-upload-status').textContent = `Uploading image… ${percent}%`;
+          });
+        }
+        return xhr;
+      }
+    }).done((response) => {
+      $('#item-image-upload-status').textContent = 'Image uploaded.';
+      resolve(response);
+    }).fail((xhr) => {
+      let message = `Image upload failed with status ${xhr.status}`;
+      try {
+        const payload = xhr.responseJSON || JSON.parse(xhr.responseText || '{}');
+        message = payload?.error?.message || message;
+      } catch (_) {
+        // Keep the status-based fallback.
+      }
+      $('#item-image-upload-status').textContent = 'Image upload failed.';
+      reject(new Error(message));
+    });
+  });
+}
+
+function clearItemPreviewObjectUrl() {
+  if (!itemPreviewObjectUrl) return;
+  URL.revokeObjectURL(itemPreviewObjectUrl);
+  itemPreviewObjectUrl = null;
+}
+
+function showItemImagePreview(url, status) {
+  const preview = $('#item-image-preview');
+  const previewImage = $('#item-image-preview-img');
+  if (!url) {
+    preview.classList.add('hidden');
+    previewImage.removeAttribute('src');
+    $('#item-image-upload-status').textContent = '';
+    return;
+  }
+  previewImage.src = url;
+  preview.classList.remove('hidden');
+  $('#item-image-upload-status').textContent = status || 'Current listing image.';
+}
+
+function clearItemImage() {
+  clearItemPreviewObjectUrl();
+  $('#item-image-file').value = '';
+  $('#item-image').value = '';
+  showItemImagePreview('', '');
 }
 
 function notify(message, isError = false) {
@@ -553,12 +627,15 @@ function renderShop() {
 }
 
 function beginItemEdit(item) {
+  clearItemPreviewObjectUrl();
   $('#editing-item-id').value = item.id;
   $('#item-form-title').textContent = 'Edit listing';
   $('#cancel-edit').classList.remove('hidden');
   $('#item-name').value = item.name;
   $('#item-description').value = item.description;
   $('#item-image').value = item.imageUrl || '';
+  $('#item-image-file').value = '';
+  showItemImagePreview(item.imageUrl || '', 'Current listing image. Choose a file to replace it.');
   $('#item-stock').value = item.stock;
   $('#item-price').value = item.price;
   $('#item-category').value = item.category;
@@ -567,6 +644,7 @@ function beginItemEdit(item) {
 }
 
 function resetItemForm() {
+  clearItemPreviewObjectUrl();
   $('#item-form').reset();
   $('#editing-item-id').value = '';
   $('#item-form-title').textContent = 'Add listing';
@@ -574,6 +652,7 @@ function resetItemForm() {
   $('#item-stock').value = '1';
   $('#item-price').value = '1';
   $('#item-active').checked = true;
+  showItemImagePreview('', '');
 }
 
 async function deactivateItem(item) {
@@ -832,6 +911,17 @@ function bindEvents() {
   $('#next-page').addEventListener('click', async () => { state.page += 1; await loadItems(); });
   $('#checkout-button').addEventListener('click', checkout);
   $('#cancel-edit').addEventListener('click', resetItemForm);
+  $('#remove-item-image').addEventListener('click', clearItemImage);
+  $('#item-image-file').addEventListener('change', (event) => {
+    clearItemPreviewObjectUrl();
+    const file = event.target.files?.[0];
+    if (!file) {
+      showItemImagePreview($('#item-image').value, 'Current listing image.');
+      return;
+    }
+    itemPreviewObjectUrl = URL.createObjectURL(file);
+    showItemImagePreview(itemPreviewObjectUrl, 'It will be uploaded when the listing is saved.');
+  });
 
   $('#shop-form').addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -847,21 +937,37 @@ function bindEvents() {
   $('#item-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const id = $('#editing-item-id').value;
-    const body = {
-      name: $('#item-name').value,
-      description: $('#item-description').value,
-      imageUrl: $('#item-image').value,
-      stock: Number($('#item-stock').value),
-      price: Number($('#item-price').value),
-      category: $('#item-category').value,
-      active: $('#item-active').checked
-    };
+    const submitButton = event.currentTarget.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
     try {
+      let imageUrl = $('#item-image').value;
+      const imageFile = $('#item-image-file').files?.[0];
+      if (imageFile) {
+        const uploaded = await uploadListingImage(imageFile);
+        imageUrl = uploaded.url;
+        $('#item-image').value = imageUrl;
+        clearItemPreviewObjectUrl();
+        $('#item-image-file').value = '';
+        showItemImagePreview(imageUrl, 'Image uploaded and ready to save.');
+      }
+      const body = {
+        name: $('#item-name').value,
+        description: $('#item-description').value,
+        imageUrl,
+        stock: Number($('#item-stock').value),
+        price: Number($('#item-price').value),
+        category: $('#item-category').value,
+        active: $('#item-active').checked
+      };
       await api(id ? `/api/me/shop/items/${id}` : '/api/me/shop/items', { method: id ? 'PUT' : 'POST', body });
       resetItemForm();
       await Promise.all([loadShop(), loadItems(), loadCategories()]);
       notify(id ? 'Listing updated.' : 'Listing created.');
-    } catch (error) { notify(error.message, true); }
+    } catch (error) {
+      notify(error.message, true);
+    } finally {
+      submitButton.disabled = false;
+    }
   });
 }
 
