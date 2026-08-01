@@ -124,12 +124,42 @@ function showPromptModal(options) {
   return showActionModal(options);
 }
 
+function openRegisterModal() {
+  const $jq = requireJQuery();
+  const $modal = $jq('#register-modal');
+  const previousFocus = document.activeElement;
+  let closed = false;
+
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    $modal.addClass('hidden').attr('aria-hidden', 'true').off('.registerModal');
+    $jq(document).off('.registerModal');
+    $jq('#register-close, #register-cancel').off('.registerModal');
+    setModalOpen(false);
+    if (previousFocus instanceof HTMLElement) previousFocus.focus();
+  };
+
+  $jq('#register-close, #register-cancel').on('click.registerModal', close);
+  $modal.on('mousedown.registerModal', (event) => {
+    if (event.target === $modal.get(0)) close();
+  });
+  $jq(document).on('keydown.registerModal', (event) => {
+    if (event.key === 'Escape') close();
+  });
+
+  $modal.removeClass('hidden').attr('aria-hidden', 'false');
+  setModalOpen(true);
+  window.setTimeout(() => $jq('#register-discord-link').trigger('focus'), 0);
+}
+
 function openCodeLoginModal({
   verifyTitle,
   instructions,
   waitingText,
   confirmTitle,
-  accountLabel
+  accountLabel,
+  guidanceType
 }) {
   const $jq = requireJQuery();
   const $modal = $jq('#minecraft-login-modal');
@@ -161,6 +191,8 @@ function openCodeLoginModal({
   $jq('#minecraft-login-command').text('');
   $jq('#minecraft-login-instructions').text(instructions);
   $jq('#minecraft-login-account-label').text(accountLabel);
+  $jq('#discord-login-guidance').toggleClass('hidden', guidanceType !== 'discord');
+  $jq('#minecraft-login-guidance').toggleClass('hidden', guidanceType !== 'minecraft');
   $jq('#minecraft-login-challenge').removeClass('hidden');
   $jq('#minecraft-login-account').addClass('hidden');
   $jq('#minecraft-login-confirm').prop('disabled', false).text('Continue').addClass('hidden');
@@ -402,10 +434,11 @@ function startMinecraftLogin() {
     displayField: 'minecraftName',
     modalOptions: {
       verifyTitle: 'Verify login in Minecraft',
-      instructions: 'Join the Minecraft server with the account you want to use, then run this command in chat.',
-      waitingText: 'Waiting for verification from the game…',
+      instructions: 'Join play.corebuilders.gg with the Minecraft account you want to use, then run this command in chat.',
+      waitingText: 'Waiting for verification from the creative server…',
       confirmTitle: 'Confirm Minecraft account',
-      accountLabel: 'Verified Minecraft account'
+      accountLabel: 'Verified Minecraft account',
+      guidanceType: 'minecraft'
     },
     successMessage: (me) => me?.discordUserId
       ? 'Minecraft login successful.'
@@ -423,7 +456,8 @@ function startDiscordBotLogin() {
       instructions: 'In the Core Builders Discord server, run this private slash command with the account you want to use.',
       waitingText: 'Waiting for verification from the Discord bot…',
       confirmTitle: 'Confirm Discord account',
-      accountLabel: 'Verified Discord account'
+      accountLabel: 'Verified Discord account',
+      guidanceType: 'discord'
     },
     successMessage: 'Discord Bot login successful.'
   });
@@ -433,13 +467,16 @@ function renderAuth(balance) {
   const area = $('#auth-area');
   area.replaceChildren();
   if (!state.me) {
+    const register = element('button', 'button ghost', 'Register');
+    register.type = 'button';
+    register.addEventListener('click', openRegisterModal);
     const discordLogin = element('button', 'button discord', 'Log in through Discord Bot');
     discordLogin.type = 'button';
     discordLogin.addEventListener('click', startDiscordBotLogin);
     const minecraftLogin = element('button', 'button primary', 'Log in through Minecraft');
     minecraftLogin.type = 'button';
     minecraftLogin.addEventListener('click', startMinecraftLogin);
-    area.append(discordLogin, minecraftLogin);
+    area.append(register, discordLogin, minecraftLogin);
     return;
   }
   const chip = element('div', 'user-chip');
