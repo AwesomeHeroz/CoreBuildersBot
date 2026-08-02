@@ -19,7 +19,56 @@ const fallbackImage = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+const THEME_STORAGE_KEY = 'core-builders-theme';
 let itemPreviewObjectUrl = null;
+
+function readStoredTheme() {
+  try {
+    const value = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return value === 'light' || value === 'dark' ? value : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function applyTheme(theme, persist = false) {
+  const selectedTheme = theme === 'light' ? 'light' : 'dark';
+  const lightThemeEnabled = selectedTheme === 'light';
+  document.documentElement.dataset.theme = selectedTheme;
+  document.documentElement.style.colorScheme = selectedTheme;
+
+  const themeColor = $('#theme-color');
+  if (themeColor) themeColor.setAttribute('content', lightThemeEnabled ? '#f6f3fb' : '#120b22');
+
+  const toggle = $('#theme-toggle');
+  const icon = $('#theme-toggle-icon');
+  const label = $('#theme-toggle-label');
+  const nextTheme = lightThemeEnabled ? 'dark' : 'light';
+  if (toggle) {
+    toggle.setAttribute('aria-label', `Switch to ${nextTheme} theme`);
+    toggle.setAttribute('title', `Switch to ${nextTheme} theme`);
+    toggle.setAttribute('aria-pressed', String(lightThemeEnabled));
+  }
+  if (icon) icon.textContent = lightThemeEnabled ? '☾' : '☀';
+  if (label) label.textContent = lightThemeEnabled ? 'Dark theme' : 'Light theme';
+
+  if (persist) {
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
+    } catch (_error) {
+      // Theme selection still works for the current page when storage is unavailable.
+    }
+  }
+}
+
+function initializeTheme() {
+  applyTheme(readStoredTheme() || 'dark');
+  $('#theme-toggle')?.addEventListener('click', () => {
+    const nextTheme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    applyTheme(nextTheme, true);
+  });
+}
+
 
 function initMaterialize() {
   const sidenavs = document.querySelectorAll('.sidenav');
@@ -1096,6 +1145,7 @@ function handleLoginResult() {
 }
 
 async function bootstrap() {
+  initializeTheme();
   initMaterialize();
   bindEvents();
   handleLoginResult();

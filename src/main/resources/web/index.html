@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Core Builders player marketplace for Minecraft resources, kits, materials and services.">
-  <meta name="theme-color" content="#120b22">
+  <meta id="theme-color" name="theme-color" content="#120b22">
   <title>Core Builders Marketplace</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.2.2/dist/css/materialize.min.css">
@@ -51,8 +51,14 @@
     <div class="account-bar z-depth-1">
       <div class="container account-bar-inner">
         <span class="account-label"><strong>Core Builders Network</strong><small>2b2t · 6b6t · ExtremeCraft</small></span>
-        <div id="auth-area" class="auth-area">
-          <button class="btn disabled" type="button" disabled>Loading…</button>
+        <div class="account-controls">
+          <button id="theme-toggle" class="btn-flat waves-effect theme-toggle" type="button" aria-label="Switch to light theme" aria-pressed="false" title="Switch to light theme">
+            <span id="theme-toggle-icon" class="theme-toggle-icon" aria-hidden="true">☀</span>
+            <span id="theme-toggle-label">Light theme</span>
+          </button>
+          <div id="auth-area" class="auth-area">
+            <button class="btn disabled" type="button" disabled>Loading…</button>
+          </div>
         </div>
       </div>
     </div>
