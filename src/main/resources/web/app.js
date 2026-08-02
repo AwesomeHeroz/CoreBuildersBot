@@ -243,7 +243,7 @@ function openCodeLoginModal({
 }
 const coins = (value) => `${new Intl.NumberFormat('en-US').format(value || 0)} coins`;
 const shortCoins = (value) => `${new Intl.NumberFormat('en-US').format(value || 0)} coins`;
-const dateTime = (value) => value ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
+const dateTime = (value) => (value && value != 0) ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
