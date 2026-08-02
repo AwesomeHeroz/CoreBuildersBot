@@ -27,6 +27,21 @@ class MarketplaceMigrationTest {
     }
 
     @Test
+    void discordTicketMigrationAddsLifecycleAndCancellationState() throws IOException {
+        try (var input = getClass().getResourceAsStream("/db/migration/V11__marketplace_discord_tickets.sql")) {
+            assertNotNull(input);
+            String sql = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(sql.contains("seller_confirmed_at"));
+            assertTrue(sql.contains("cancelled_at"));
+            assertTrue(sql.contains("cancelled_by"));
+            assertTrue(sql.contains("discord_ticket_state"));
+            assertTrue(sql.contains("discord_channel_id"));
+            assertTrue(sql.contains("discord_message_id"));
+            assertTrue(sql.contains("idx_marketplace_ticket_queue"));
+        }
+    }
+
+    @Test
     void economyTerminologyMigrationUpdatesAchievementDescriptions() throws IOException {
         try (var input = getClass().getResourceAsStream("/db/migration/V10__rename_economy_terms.sql")) {
             assertNotNull(input);

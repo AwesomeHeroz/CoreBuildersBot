@@ -88,8 +88,14 @@ public final class MarketplaceModels {
                                        String shopName, String itemName, String imageUrl, String category,
                                        int quantity, long unitPrice, long lineTotal, String status,
                                        boolean fundsReleased, Instant createdAt, Instant deliveredAt,
-                                       Instant buyerConfirmedAt, Instant disputedAt, String disputeReason,
-                                       Instant resolvedAt, String resolution, String resolutionNote) {}
+                                       Instant sellerConfirmedAt, Instant cancelledAt, String cancelledBy,
+                                       Instant disputedAt, String disputeReason, Instant resolvedAt,
+                                       String resolution, String resolutionNote) {}
+
+    public record MarketplaceTicket(UUID lineId, UUID orderId, UUID buyerMemberId, UUID sellerMemberId,
+                                    String buyerDiscordId, String sellerDiscordId, String buyerUsername,
+                                    String sellerUsername, String itemName, int quantity, long lineTotal,
+                                    String lineStatus, String ticketState, String channelId, String messageId) {}
 
     public record MarketplaceOrder(UUID id, UUID buyerMemberId, long totalPrice, String status,
                                    List<MarketplaceOrderLine> lines, Instant createdAt, Instant completedAt) {

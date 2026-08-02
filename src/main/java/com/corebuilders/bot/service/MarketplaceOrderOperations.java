@@ -10,8 +10,14 @@ import java.util.UUID;
 public interface MarketplaceOrderOperations {
     List<MarketplaceOrder> purchases(UUID buyerMemberId, int limit);
     List<MarketplaceOrderLine> sales(UUID sellerMemberId, int limit);
-    MarketplaceOrderLine markDelivered(UUID sellerMemberId, UUID lineId);
-    MarketplaceOrderLine confirmDelivery(UUID buyerMemberId, UUID lineId);
+
+    /** Buyer reports that the item has been received/delivered. */
+    MarketplaceOrderLine markDelivered(UUID buyerMemberId, UUID lineId);
+
+    /** Seller confirms completion; escrow is then released to the seller. */
+    MarketplaceOrderLine confirmDelivery(UUID sellerMemberId, UUID lineId);
+
     MarketplaceOrderLine cancelLine(UUID buyerMemberId, UUID lineId);
+    MarketplaceOrderLine cancelSale(UUID sellerMemberId, UUID lineId);
     MarketplaceOrderLine disputeLine(UUID buyerMemberId, UUID lineId, String reason);
 }

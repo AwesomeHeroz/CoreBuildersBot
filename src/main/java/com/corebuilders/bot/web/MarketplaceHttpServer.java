@@ -436,23 +436,28 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             sendJson(exchange, 200, Map.of("sales", orders.sales(principal.memberId(), limit)));
             return;
         }
-        if (parts.size() == 4 && parts.get(0).equals("api") && parts.get(1).equals("sales")
-                && parts.get(3).equals("delivered") && method.equals("POST")) {
-            requireCsrf(exchange, session);
-            sendJson(exchange, 200, orders.markDelivered(principal.memberId(), uuid(parts.get(2))));
-            return;
-        }
         if (parts.size() == 4 && parts.get(0).equals("api") && parts.get(1).equals("orders")
                 && method.equals("POST")) {
             requireCsrf(exchange, session);
             UUID lineId = uuid(parts.get(2));
             switch (parts.get(3)) {
-                case "confirm" -> sendJson(exchange, 200, orders.confirmDelivery(principal.memberId(), lineId));
+                case "delivered" -> sendJson(exchange, 200, orders.markDelivered(principal.memberId(), lineId));
                 case "cancel" -> sendJson(exchange, 200, orders.cancelLine(principal.memberId(), lineId));
                 case "dispute" -> {
                     DisputeRequest request = readJson(exchange, DisputeRequest.class);
                     sendJson(exchange, 200, orders.disputeLine(principal.memberId(), lineId, request.reason()));
                 }
+                default -> throw new HttpStatusException(404, "not_found", "API endpoint not found.");
+            }
+            return;
+        }
+        if (parts.size() == 4 && parts.get(0).equals("api") && parts.get(1).equals("sales")
+                && method.equals("POST")) {
+            requireCsrf(exchange, session);
+            UUID lineId = uuid(parts.get(2));
+            switch (parts.get(3)) {
+                case "confirm" -> sendJson(exchange, 200, orders.confirmDelivery(principal.memberId(), lineId));
+                case "cancel" -> sendJson(exchange, 200, orders.cancelSale(principal.memberId(), lineId));
                 default -> throw new HttpStatusException(404, "not_found", "API endpoint not found.");
             }
             return;

@@ -346,11 +346,18 @@ public final class Schema {
         public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
         public final DateTimePath<LocalDateTime> deliveredAt = createDateTime("delivered_at", LocalDateTime.class);
         public final DateTimePath<LocalDateTime> buyerConfirmedAt = createDateTime("buyer_confirmed_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> sellerConfirmedAt = createDateTime("seller_confirmed_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> cancelledAt = createDateTime("cancelled_at", LocalDateTime.class);
+        public final StringPath cancelledBy = createString("cancelled_by");
         public final DateTimePath<LocalDateTime> disputedAt = createDateTime("disputed_at", LocalDateTime.class);
         public final StringPath disputeReason = createString("dispute_reason");
         public final DateTimePath<LocalDateTime> resolvedAt = createDateTime("resolved_at", LocalDateTime.class);
         public final StringPath resolution = createString("resolution");
         public final StringPath resolutionNote = createString("resolution_note");
+        public final StringPath discordTicketState = createString("discord_ticket_state");
+        public final StringPath discordChannelId = createString("discord_channel_id");
+        public final StringPath discordMessageId = createString("discord_message_id");
+        public final DateTimePath<LocalDateTime> discordTicketUpdatedAt = createDateTime("discord_ticket_updated_at", LocalDateTime.class);
         public QMarketplaceOrderItems(String variable) { super(variable, "marketplace_order_items"); }
     }
 

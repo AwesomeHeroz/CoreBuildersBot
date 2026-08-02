@@ -15,6 +15,16 @@ discord:
     achievements: "achievements"
     leaderboard: "core-leaderboard"
 
+  marketplace-tickets:
+    enabled: true
+    # Existing Discord category ID or exact category name.
+    category: "marketplace-orders"
+    # Supported placeholders: {item}, {buyer}, {seller}, {id}.
+    name-pattern: "order-{item}-{id}"
+    # Keep completed/cancelled tickets readable, but prevent buyer/seller from sending more messages.
+    lock-on-terminal-state: true
+    reconciliation-limit: 100
+
 
 music:
   enabled: true

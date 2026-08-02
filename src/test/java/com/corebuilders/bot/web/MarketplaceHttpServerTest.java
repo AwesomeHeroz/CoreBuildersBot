@@ -253,12 +253,15 @@ class MarketplaceHttpServerTest {
         assertEquals(18, marketplace.lastSalesLimit);
         assertEquals(1, sales.json().path("sales").size());
 
-        Response delivered = request("POST", "/api/sales/" + LINE_ID + "/delivered", login.sessionCookie(), login.csrfToken(), null);
+        Response delivered = request("POST", "/api/orders/" + LINE_ID + "/delivered",
+                login.sessionCookie(), login.csrfToken(), null);
         assertEquals(200, delivered.status());
         assertEquals("DELIVERED", delivered.json().path("status").asText());
-        assertEquals(200, request("POST", "/api/orders/" + LINE_ID + "/confirm",
+        assertEquals(200, request("POST", "/api/sales/" + LINE_ID + "/confirm",
                 login.sessionCookie(), login.csrfToken(), null).status());
         assertEquals(200, request("POST", "/api/orders/" + LINE_ID + "/cancel",
+                login.sessionCookie(), login.csrfToken(), null).status());
+        assertEquals(200, request("POST", "/api/sales/" + LINE_ID + "/cancel",
                 login.sessionCookie(), login.csrfToken(), null).status());
         assertEquals(200, request("POST", "/api/orders/" + LINE_ID + "/dispute",
                 login.sessionCookie(), login.csrfToken(), "{\"reason\":\"Delivery problem\"}").status());
@@ -690,15 +693,18 @@ class MarketplaceHttpServerTest {
         }
 
         @Override
-        public MarketplaceOrderLine markDelivered(UUID sellerMemberId, UUID lineId) {
+        public MarketplaceOrderLine markDelivered(UUID buyerMemberId, UUID lineId) {
             assertEquals(LINE_ID, lineId);
             return line("DELIVERED", NOW.plusSeconds(60));
         }
 
-        @Override public MarketplaceOrderLine confirmDelivery(UUID buyerMemberId, UUID lineId) {
+        @Override public MarketplaceOrderLine confirmDelivery(UUID sellerMemberId, UUID lineId) {
             return line("SETTLED", NOW.plusSeconds(60));
         }
         @Override public MarketplaceOrderLine cancelLine(UUID buyerMemberId, UUID lineId) {
+            return line("CANCELLED", null);
+        }
+        @Override public MarketplaceOrderLine cancelSale(UUID sellerMemberId, UUID lineId) {
             return line("CANCELLED", null);
         }
         @Override public MarketplaceOrderLine disputeLine(UUID buyerMemberId, UUID lineId, String reason) {
@@ -719,6 +725,8 @@ class MarketplaceHttpServerTest {
                     "Builder", "Seller Shop", item.name(), item.imageUrl(), item.category(), 2, 150L, 300L,
                     status, "SETTLED".equals(status), NOW, deliveredAt,
                     "SETTLED".equals(status) ? NOW.plusSeconds(120) : null,
+                    "CANCELLED".equals(status) ? NOW.plusSeconds(90) : null,
+                    "CANCELLED".equals(status) ? "BUYER" : null,
                     "DISPUTED".equals(status) ? NOW.plusSeconds(120) : null,
                     "DISPUTED".equals(status) ? "Delivery problem" : null,
                     null, null, null);

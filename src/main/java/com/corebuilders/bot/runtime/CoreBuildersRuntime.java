@@ -3,6 +3,7 @@ package com.corebuilders.bot.runtime;
 import com.corebuilders.bot.config.ApplicationConfig;
 import com.corebuilders.bot.config.BotProperties;
 import com.corebuilders.bot.config.MusicConfig;
+import com.corebuilders.bot.config.MarketplaceTicketConfig;
 import com.corebuilders.bot.config.ProgressionConfig;
 import com.corebuilders.bot.config.ShopConfig;
 import com.corebuilders.bot.config.WebsiteConfig;
@@ -17,6 +18,11 @@ import com.corebuilders.bot.discord.ApplicationDiscordListener;
 import com.corebuilders.bot.discord.ApplicationPanelService;
 import com.corebuilders.bot.discord.CommandRegistrar;
 import com.corebuilders.bot.discord.DiscordBotListener;
+import com.corebuilders.bot.discord.MarketplaceTicketCoordinator;
+import com.corebuilders.bot.discord.MarketplaceTicketDiscordListener;
+import com.corebuilders.bot.discord.TicketingMarketplaceCartOperations;
+import com.corebuilders.bot.discord.TicketingMarketplaceDisputeOperations;
+import com.corebuilders.bot.discord.TicketingMarketplaceOrderOperations;
 import com.corebuilders.bot.discord.DiscordNotifier;
 import com.corebuilders.bot.discord.PermissionService;
 import com.corebuilders.bot.discord.RankRoleService;
@@ -54,6 +60,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
     private final HikariDataSource dataSource;
     private final DiscordBotListener discordListener;
     private final ApplicationDiscordListener applicationListener;
+    private final MarketplaceTicketDiscordListener marketplaceTicketListener;
     private final MusicDiscordListener musicListener;
     private final JDA jda;
     private final CommandRegistrar commandRegistrar;
@@ -70,6 +77,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             HikariDataSource dataSource,
             DiscordBotListener discordListener,
             ApplicationDiscordListener applicationListener,
+            MarketplaceTicketDiscordListener marketplaceTicketListener,
             MusicDiscordListener musicListener,
             JDA jda,
             CommandRegistrar commandRegistrar,
@@ -84,6 +92,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         this.dataSource = dataSource;
         this.discordListener = discordListener;
         this.applicationListener = applicationListener;
+        this.marketplaceTicketListener = marketplaceTicketListener;
         this.musicListener = musicListener;
         this.jda = jda;
         this.commandRegistrar = commandRegistrar;
@@ -104,6 +113,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         HikariDataSource dataSource = null;
         DiscordBotListener listener = null;
         ApplicationDiscordListener applicationListener = null;
+        MarketplaceTicketDiscordListener marketplaceTicketListener = null;
         MusicDiscordListener musicListener = null;
         MarketplaceHttpServer websiteServer = null;
         JDA jda = null;
@@ -163,24 +173,6 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     java.time.Duration.ofSeconds(properties.getHyperglidingCacheSeconds())
             );
 
-            listener = new DiscordBotListener(
-                    members,
-                    ledger,
-                    contributions,
-                    achievements,
-                    projects,
-                    missions,
-                    shop,
-                    marketplace,
-                    audit,
-                    links,
-                    discordWebLogin,
-                    permissions,
-                    rankRoles,
-                    notifier,
-                    properties,
-                    hypergliding
-            );
             applicationListener = new ApplicationDiscordListener(
                     applications,
                     applicationConfig,
@@ -200,7 +192,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
             JDABuilder jdaBuilder = JDABuilder.createDefault(token)
                     .setActivity(Activity.playing("Core Builders progression"))
-                    .addEventListeners(listener, applicationListener, musicListener);
+                    .addEventListeners(applicationListener, musicListener);
 
             if (musicConfig.enabled()) {
                 jdaBuilder.enableIntents(GatewayIntent.GUILD_VOICE_STATES);
@@ -225,6 +217,47 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             applicationListener.validateConfiguration(jda);
             applicationPanelService.setupPanel(jda);
 
+            MarketplaceTicketConfig marketplaceTicketConfig = MarketplaceTicketConfig.from(plugin.getConfig());
+            MarketplaceTicketStore marketplaceTicketStore = new MarketplaceTicketStore(database);
+            MarketplaceTicketCoordinator marketplaceTickets = new MarketplaceTicketCoordinator(
+                    jda,
+                    properties.getGuildId(),
+                    marketplaceTicketConfig,
+                    properties.leadershipRoleIds(),
+                    marketplaceTicketStore,
+                    plugin.getLogger()
+            );
+            marketplaceTickets.validate();
+            MarketplaceCartOperations ticketingCarts = new TicketingMarketplaceCartOperations(
+                    marketplace, marketplaceTickets);
+            MarketplaceOrderOperations ticketingOrders = new TicketingMarketplaceOrderOperations(
+                    marketplace, marketplaceTickets);
+            MarketplaceDisputeOperations ticketingDisputes = new TicketingMarketplaceDisputeOperations(
+                    marketplace, marketplaceTickets);
+
+            listener = new DiscordBotListener(
+                    members,
+                    ledger,
+                    contributions,
+                    achievements,
+                    projects,
+                    missions,
+                    shop,
+                    ticketingDisputes,
+                    audit,
+                    links,
+                    discordWebLogin,
+                    permissions,
+                    rankRoles,
+                    notifier,
+                    properties,
+                    hypergliding
+            );
+            marketplaceTicketListener = new MarketplaceTicketDiscordListener(
+                    properties.getGuildId(), members, ticketingOrders);
+            jda.addEventListener(listener, marketplaceTicketListener);
+            marketplaceTickets.reconcile();
+
             if (websiteConfig.enabled()) {
                 websiteServer = new MarketplaceHttpServer(
                         websiteConfig,
@@ -235,8 +268,8 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                         discordWebLogin,
                         marketplace, // catalog reads
                         marketplace, // shop management
-                        marketplace, // cart and checkout
-                        marketplace, // order lifecycle
+                        ticketingCarts, // cart, checkout, and Discord ticket creation
+                        ticketingOrders, // order lifecycle and Discord ticket synchronization
                         plugin.getLogger()
                 );
                 websiteServer.start();
@@ -253,6 +286,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     dataSource,
                     listener,
                     applicationListener,
+                    marketplaceTicketListener,
                     musicListener,
                     jda,
                     registrar,
@@ -275,6 +309,9 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             }
             if (applicationListener != null) {
                 applicationListener.close();
+            }
+            if (marketplaceTicketListener != null) {
+                marketplaceTicketListener.close();
             }
             if (musicListener != null) {
                 musicListener.close();
@@ -323,6 +360,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         if (websiteServer != null) closeQuietly("Marketplace website", websiteServer::close);
         closeQuietly("Discord client", jda::shutdownNow);
         closeQuietly("Discord command listener", discordListener::shutdown);
+        closeQuietly("Marketplace ticket listener", marketplaceTicketListener::close);
         closeQuietly("Application listener", applicationListener::close);
         closeQuietly("Database pool", dataSource::close);
     }

@@ -39,6 +39,16 @@ class MarketplaceWebContentTest {
         assertTrue(!javascript.contains(" CP`"));
     }
 
+    @Test
+    void exposesBuyerSellerDeliveryAndCancellationActions() throws IOException {
+        String javascript = resource("/web/app.js");
+        assertTrue(javascript.contains("/api/orders/${line.id}/delivered"));
+        assertTrue(javascript.contains("/api/orders/${line.id}/cancel"));
+        assertTrue(javascript.contains("/api/sales/${sale.id}/confirm"));
+        assertTrue(javascript.contains("/api/sales/${sale.id}/cancel"));
+        assertTrue(javascript.contains("The seller must now confirm it"));
+    }
+
     private static String resource(String path) throws IOException {
         try (InputStream input = MarketplaceWebContentTest.class.getResourceAsStream(path)) {
             if (input == null) throw new IOException("Missing test resource: " + path);

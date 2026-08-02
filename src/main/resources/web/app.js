@@ -816,9 +816,26 @@ function renderOrders(orders) {
       const info = element('div');
       info.append(element('strong', '', `${line.quantity} × ${line.itemName}`));
       info.append(element('div', 'muted', `${line.shopName} · ${line.status.replaceAll('_', ' ')}`));
-      const amount = element('span', '', shortCoins(line.lineTotal));
-      row.append(info, amount);
+      row.append(info, element('span', '', shortCoins(line.lineTotal)));
+
       if (line.status === 'PENDING_DELIVERY') {
+        const actions = element('div', 'management-actions');
+        const delivered = element('button', 'button primary', 'Mark delivered');
+        delivered.type = 'button';
+        delivered.addEventListener('click', async () => {
+          const accepted = await showConfirmModal({
+            title: 'Mark order delivered?',
+            message: `Confirm that ${line.itemName} was delivered/received. The seller must confirm before payment is released.`,
+            confirmText: 'Mark delivered'
+          });
+          if (!accepted) return;
+          try {
+            await api(`/api/orders/${line.id}/delivered`, { method: 'POST' });
+            await loadOrders();
+            notify('Delivery marked. The seller must now confirm it.');
+          } catch (error) { notify(error.message, true); }
+        });
+
         const cancel = element('button', 'button ghost', 'Cancel');
         cancel.type = 'button';
         cancel.addEventListener('click', async () => {
@@ -835,24 +852,9 @@ function renderOrders(orders) {
             notify('Order line cancelled and refunded.');
           } catch (error) { notify(error.message, true); }
         });
-        row.append(cancel);
+        actions.append(delivered, cancel);
+        row.append(actions);
       } else if (line.status === 'DELIVERED' && !line.fundsReleased) {
-        const actions = element('div', 'management-actions');
-        const confirm = element('button', 'button primary', 'Confirm received');
-        confirm.type = 'button';
-        confirm.addEventListener('click', async () => {
-          const accepted = await showConfirmModal({
-            title: 'Confirm delivery',
-            message: `Confirm that you received ${line.itemName}? This releases payment to the seller.`,
-            confirmText: 'Confirm received'
-          });
-          if (!accepted) return;
-          try {
-            await api(`/api/orders/${line.id}/confirm`, { method: 'POST' });
-            await Promise.all([loadOrders(), loadMe()]);
-            notify('Delivery confirmed and seller paid.');
-          } catch (error) { notify(error.message, true); }
-        });
         const dispute = element('button', 'button ghost', 'Report problem');
         dispute.type = 'button';
         dispute.addEventListener('click', async () => {
@@ -875,8 +877,7 @@ function renderOrders(orders) {
             notify('The order line is now disputed. Staff review is required.');
           } catch (error) { notify(error.message, true); }
         });
-        actions.append(confirm, dispute);
-        row.append(actions);
+        row.append(dispute);
       }
       lines.append(row);
     }
@@ -908,20 +909,42 @@ function renderSales(sales) {
     const status = element('span', `status-chip${sale.status === 'DELIVERED' ? '' : ' inactive'}`, sale.status.replaceAll('_', ' '));
     head.append(status);
     card.append(head);
+
     if (sale.status === 'PENDING_DELIVERY') {
-      const actions = element('div', 'management-actions');
-      actions.style.marginTop = '12px';
-      const delivered = element('button', 'button primary', 'Mark delivered');
-      delivered.type = 'button';
-      delivered.addEventListener('click', async () => {
+      const cancel = element('button', 'button ghost', 'Cancel order');
+      cancel.type = 'button';
+      cancel.addEventListener('click', async () => {
+        const accepted = await showConfirmModal({
+          title: 'Cancel this sale?',
+          message: `Cancel ${sale.itemName}? The buyer will be refunded and stock will be restored.`,
+          confirmText: 'Cancel and refund',
+          danger: true
+        });
+        if (!accepted) return;
         try {
-          await api(`/api/sales/${sale.id}/delivered`, { method: 'POST' });
-          await loadSales();
-          notify(`${sale.itemName} marked as delivered.`);
+          await api(`/api/sales/${sale.id}/cancel`, { method: 'POST' });
+          await Promise.all([loadSales(), loadMe(), loadItems()]);
+          notify('Sale cancelled. The buyer was refunded.');
         } catch (error) { notify(error.message, true); }
       });
-      actions.append(delivered);
-      card.append(actions);
+      card.append(cancel);
+    } else if (sale.status === 'DELIVERED' && !sale.fundsReleased) {
+      const confirm = element('button', 'button primary', 'Confirm delivery');
+      confirm.type = 'button';
+      confirm.addEventListener('click', async () => {
+        const accepted = await showConfirmModal({
+          title: 'Confirm completed delivery?',
+          message: `Confirm delivery of ${sale.itemName}. The escrowed coins will be released to you.`,
+          confirmText: 'Confirm and release coins'
+        });
+        if (!accepted) return;
+        try {
+          await api(`/api/sales/${sale.id}/confirm`, { method: 'POST' });
+          await Promise.all([loadSales(), loadMe()]);
+          notify('Delivery confirmed and escrow released.');
+        } catch (error) { notify(error.message, true); }
+      });
+      card.append(confirm);
     }
     list.append(card);
   }

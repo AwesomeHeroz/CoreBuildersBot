@@ -558,18 +558,18 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
     }
 
     @Override
-    public MarketplaceOrderLine markDelivered(UUID sellerMemberId, UUID lineId) {
-        Objects.requireNonNull(sellerMemberId, "sellerMemberId");
+    public MarketplaceOrderLine markDelivered(UUID buyerMemberId, UUID lineId) {
+        Objects.requireNonNull(buyerMemberId, "buyerMemberId");
         Objects.requireNonNull(lineId, "lineId");
-        authorizer.requireAuthorized(sellerMemberId);
+        authorizer.requireAuthorized(buyerMemberId);
         return database.inTransaction(() -> {
             MarketplaceOrderLine line = lockOrderLine(lineId);
-            authorizer.requireAuthorizedForUpdate(sellerMemberId);
-            if (!line.sellerMemberId().equals(sellerMemberId)) {
-                throw forbidden("You can mark only your own sales as delivered.");
+            authorizer.requireAuthorizedForUpdate(buyerMemberId);
+            if (!line.buyerMemberId().equals(buyerMemberId)) {
+                throw forbidden("You can mark only your own purchases as delivered.");
             }
             if (!LINE_PENDING.equals(line.status())) {
-                throw conflict("This sale is not awaiting seller delivery.");
+                throw conflict("This purchase is not awaiting delivery confirmation.");
             }
             long changed = database.query(q -> q.update(MARKETPLACE_ORDER_ITEMS)
                     .set(MARKETPLACE_ORDER_ITEMS.status, LINE_DELIVERED)
@@ -577,47 +577,47 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                     .where(MARKETPLACE_ORDER_ITEMS.id.eq(uuid(lineId)),
                             MARKETPLACE_ORDER_ITEMS.status.eq(LINE_PENDING))
                     .execute());
-            if (changed != 1) throw conflict("This sale changed while it was being updated.");
+            if (changed != 1) throw conflict("This purchase changed while it was being updated.");
             updateOrderState(line.orderId());
-            String actor = actorDirectory.discordIdFor(sellerMemberId);
-            String detail = line.fundsReleased()
-                    ? line.itemName() + "; legacy order was already paid"
-                    : line.itemName() + "; awaiting buyer confirmation";
-            audit.log(actor, "MARKETPLACE_SALE_DELIVERED", actorDirectory.discordIdFor(line.buyerMemberId()),
-                    "MARKETPLACE_ORDER_ITEM", lineId.toString(), detail);
+            String actor = actorDirectory.discordIdFor(buyerMemberId);
+            audit.log(actor, "MARKETPLACE_BUYER_MARKED_DELIVERED",
+                    actorDirectory.discordIdFor(line.sellerMemberId()),
+                    "MARKETPLACE_ORDER_ITEM", lineId.toString(),
+                    line.itemName() + "; awaiting seller confirmation");
             return requireOrderLine(lineId);
         });
     }
 
     @Override
-    public MarketplaceOrderLine confirmDelivery(UUID buyerMemberId, UUID lineId) {
-        Objects.requireNonNull(buyerMemberId, "buyerMemberId");
+    public MarketplaceOrderLine confirmDelivery(UUID sellerMemberId, UUID lineId) {
+        Objects.requireNonNull(sellerMemberId, "sellerMemberId");
         Objects.requireNonNull(lineId, "lineId");
-        authorizer.requireAuthorized(buyerMemberId);
+        authorizer.requireAuthorized(sellerMemberId);
         return database.inTransaction(() -> {
             MarketplaceOrderLine line = lockOrderLine(lineId);
-            if (!line.buyerMemberId().equals(buyerMemberId)) throw forbidden("You can confirm only your own purchases.");
-            if (!LINE_DELIVERED.equals(line.status()) || line.fundsReleased()) {
-                throw conflict("This purchase is not awaiting buyer confirmation.");
+            if (!line.sellerMemberId().equals(sellerMemberId)) {
+                throw forbidden("You can confirm only your own sales.");
             }
-            // Lock both balances in stable UUID order before rechecking authorization to avoid
-            // cross-purchase deadlocks when two members buy from each other.
-            lockMembers(buyerMemberId, line.sellerMemberId());
-            authorizer.requireAuthorizedForUpdate(buyerMemberId);
-            String buyerDiscord = actorDirectory.discordIdFor(buyerMemberId);
-            ledger.addCredits(line.sellerMemberId(), line.lineTotal(), SourceType.MARKETPLACE_SALE,
-                    line.orderId(), "Marketplace escrow released", buyerDiscord);
+            if (!LINE_DELIVERED.equals(line.status()) || line.fundsReleased()) {
+                throw conflict("This sale is not awaiting seller confirmation.");
+            }
+            lockMembers(line.buyerMemberId(), sellerMemberId);
+            authorizer.requireAuthorizedForUpdate(sellerMemberId);
+            String sellerDiscord = actorDirectory.discordIdFor(sellerMemberId);
+            ledger.addCredits(sellerMemberId, line.lineTotal(), SourceType.MARKETPLACE_SALE,
+                    line.orderId(), "Marketplace escrow released", sellerDiscord);
             long changed = database.query(q -> q.update(MARKETPLACE_ORDER_ITEMS)
                     .set(MARKETPLACE_ORDER_ITEMS.status, LINE_SETTLED)
                     .set(MARKETPLACE_ORDER_ITEMS.fundsReleased, true)
-                    .set(MARKETPLACE_ORDER_ITEMS.buyerConfirmedAt, now())
+                    .set(MARKETPLACE_ORDER_ITEMS.sellerConfirmedAt, now())
                     .where(MARKETPLACE_ORDER_ITEMS.id.eq(uuid(lineId)),
                             MARKETPLACE_ORDER_ITEMS.status.eq(LINE_DELIVERED),
                             MARKETPLACE_ORDER_ITEMS.fundsReleased.isFalse())
                     .execute());
-            if (changed != 1) throw conflict("This purchase changed while it was being confirmed.");
+            if (changed != 1) throw conflict("This sale changed while it was being confirmed.");
             updateOrderState(line.orderId());
-            audit.log(buyerDiscord, "MARKETPLACE_DELIVERY_CONFIRMED", actorDirectory.discordIdFor(line.sellerMemberId()),
+            audit.log(sellerDiscord, "MARKETPLACE_SELLER_CONFIRMED_DELIVERY",
+                    actorDirectory.discordIdFor(line.buyerMemberId()),
                     "MARKETPLACE_ORDER_ITEM", lineId.toString(), line.itemName());
             return requireOrderLine(lineId);
         });
@@ -625,25 +625,42 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
 
     @Override
     public MarketplaceOrderLine cancelLine(UUID buyerMemberId, UUID lineId) {
-        Objects.requireNonNull(buyerMemberId, "buyerMemberId");
+        return cancelBeforeDelivery(buyerMemberId, lineId, false);
+    }
+
+    @Override
+    public MarketplaceOrderLine cancelSale(UUID sellerMemberId, UUID lineId) {
+        return cancelBeforeDelivery(sellerMemberId, lineId, true);
+    }
+
+    private MarketplaceOrderLine cancelBeforeDelivery(UUID actorMemberId, UUID lineId, boolean sellerCancellation) {
+        Objects.requireNonNull(actorMemberId, "actorMemberId");
         Objects.requireNonNull(lineId, "lineId");
-        authorizer.requireAuthorized(buyerMemberId);
+        authorizer.requireAuthorized(actorMemberId);
         return database.inTransaction(() -> {
             MarketplaceOrderLine line = lockOrderLine(lineId);
-            authorizer.requireAuthorizedForUpdate(buyerMemberId);
-            if (!line.buyerMemberId().equals(buyerMemberId)) throw forbidden("You can cancel only your own purchases.");
-            if (!LINE_PENDING.equals(line.status()) || line.fundsReleased()) {
-                throw conflict("Only purchases not yet marked delivered can be cancelled.");
+            authorizer.requireAuthorizedForUpdate(actorMemberId);
+            UUID expectedActor = sellerCancellation ? line.sellerMemberId() : line.buyerMemberId();
+            if (!expectedActor.equals(actorMemberId)) {
+                throw forbidden(sellerCancellation
+                        ? "You can cancel only your own sales."
+                        : "You can cancel only your own purchases.");
             }
-            ledger.lockMember(buyerMemberId);
+            if (!LINE_PENDING.equals(line.status()) || line.fundsReleased()) {
+                throw conflict("Only orders not yet marked delivered can be cancelled.");
+            }
+            ledger.lockMember(line.buyerMemberId());
             String item = database.query(q -> q.select(MARKETPLACE_ITEMS.id)
                     .from(MARKETPLACE_ITEMS)
                     .where(MARKETPLACE_ITEMS.id.eq(uuid(line.itemId())))
                     .forUpdate().fetchOne());
             if (item == null) throw notFound("Marketplace item no longer exists.");
-            String buyerDiscord = actorDirectory.discordIdFor(buyerMemberId);
-            ledger.addCredits(buyerMemberId, line.lineTotal(), SourceType.MARKETPLACE_REFUND,
-                    line.orderId(), "Cancelled marketplace line", buyerDiscord);
+            String actorDiscord = actorDirectory.discordIdFor(actorMemberId);
+            ledger.addCredits(line.buyerMemberId(), line.lineTotal(), SourceType.MARKETPLACE_REFUND,
+                    line.orderId(), sellerCancellation
+                            ? "Seller cancelled marketplace line"
+                            : "Buyer cancelled marketplace line",
+                    actorDiscord);
             database.query(q -> q.update(MARKETPLACE_ITEMS)
                     .set(MARKETPLACE_ITEMS.stock, MARKETPLACE_ITEMS.stock.add(line.quantity()))
                     .set(MARKETPLACE_ITEMS.version, MARKETPLACE_ITEMS.version.add(1L))
@@ -652,13 +669,17 @@ public final class MarketplaceService implements MarketplaceOperations, Marketpl
                     .execute());
             long changed = database.query(q -> q.update(MARKETPLACE_ORDER_ITEMS)
                     .set(MARKETPLACE_ORDER_ITEMS.status, LINE_CANCELLED)
+                    .set(MARKETPLACE_ORDER_ITEMS.cancelledAt, now())
+                    .set(MARKETPLACE_ORDER_ITEMS.cancelledBy, sellerCancellation ? "SELLER" : "BUYER")
                     .where(MARKETPLACE_ORDER_ITEMS.id.eq(uuid(lineId)),
                             MARKETPLACE_ORDER_ITEMS.status.eq(LINE_PENDING),
                             MARKETPLACE_ORDER_ITEMS.fundsReleased.isFalse())
                     .execute());
-            if (changed != 1) throw conflict("This purchase changed while it was being cancelled.");
+            if (changed != 1) throw conflict("This order changed while it was being cancelled.");
             updateOrderState(line.orderId());
-            audit.log(buyerDiscord, "MARKETPLACE_LINE_CANCELLED", actorDirectory.discordIdFor(line.sellerMemberId()),
+            audit.log(actorDiscord,
+                    sellerCancellation ? "MARKETPLACE_SALE_CANCELLED" : "MARKETPLACE_LINE_CANCELLED",
+                    actorDirectory.discordIdFor(sellerCancellation ? line.buyerMemberId() : line.sellerMemberId()),
                     "MARKETPLACE_ORDER_ITEM", lineId.toString(), line.itemName());
             return requireOrderLine(lineId);
         });
