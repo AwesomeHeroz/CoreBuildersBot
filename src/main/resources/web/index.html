@@ -14,11 +14,11 @@
 </head>
 <body>
   <header>
-    <nav class="deep-purple darken-2" aria-label="Primary navigation">
+    <nav class="app-nav" aria-label="Primary navigation">
       <div class="nav-wrapper container nav-container">
         <a class="brand-logo brand" href="#marketplace" aria-label="Core Builders Marketplace home">
           <img src="/core-builders-logo.webp" alt="" class="brand-logo-image">
-          <span>Core Builders</span>
+          <span class="brand-copy"><strong>Core Builders</strong><small>Marketplace</small></span>
         </a>
 
         <button class="sidenav-trigger mobile-menu-button" type="button" data-target="mobile-navigation" aria-label="Open navigation">
@@ -50,7 +50,7 @@
 
     <div class="account-bar z-depth-1">
       <div class="container account-bar-inner">
-        <span class="account-label">Account</span>
+        <span class="account-label"><strong>Community marketplace</strong><small>Secure member-to-member trading</small></span>
         <div id="auth-area" class="auth-area">
           <button class="btn disabled" type="button" disabled>Loading…</button>
         </div>
@@ -65,20 +65,28 @@
       <div class="page-header white">
         <div class="container page-header-content">
           <div>
+            <div class="hero-badge"><span></span> Member-run marketplace</div>
             <p class="overline">Core Builders Marketplace</p>
-            <h1 id="marketplace-title">Community listings</h1>
+            <h1 id="marketplace-title">Find what you need.<br><span>Trade with confidence.</span></h1>
             <p class="flow-text page-intro">Buy materials, kits, rare items, and player services from community shops using Core Builders coins.</p>
             <div class="page-actions">
-              <a class="btn waves-effect waves-light deep-purple" href="#marketplace-listings">Browse listings</a>
-              <a class="btn-flat waves-effect" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">Join Discord</a>
+              <a class="btn waves-effect waves-light primary-action" href="#marketplace-listings">Browse listings</a>
+              <a class="btn-flat waves-effect secondary-action" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">Join Discord</a>
+            </div>
+            <div class="hero-trust" aria-label="Marketplace benefits">
+              <span>Verified members</span>
+              <span>Coin checkout</span>
+              <span>Tracked delivery</span>
             </div>
           </div>
-          <div class="summary-card card-panel deep-purple lighten-5">
-            <span class="summary-value deep-purple-text text-darken-2" id="result-count">0</span>
+          <aside class="summary-card card-panel" aria-label="Marketplace summary">
+            <div class="summary-icon" aria-hidden="true">CB</div>
+            <span class="summary-value" id="result-count">0</span>
             <span class="summary-label">Active listings</span>
             <div class="divider"></div>
-            <small>One shop per member · Coin checkout</small>
-          </div>
+            <div class="summary-detail"><strong>Simple checkout</strong><small>Pay using Core Builders coins</small></div>
+            <div class="summary-detail"><strong>Clear ownership</strong><small>One shop per community member</small></div>
+          </aside>
         </div>
       </div>
 
@@ -93,6 +101,10 @@
           </div>
 
           <form id="search-form" class="card-panel filter-panel">
+            <div class="filter-panel-head">
+              <div><h3>Find a listing</h3><p>Use search and filters to narrow the marketplace.</p></div>
+              <button id="reset-filters" class="btn-flat waves-effect" type="button">Reset filters</button>
+            </div>
             <div class="row filter-row">
               <div class="input-field col s12 l5">
                 <input id="search-query" type="search" maxlength="100" placeholder="Item, shop, service, or description">
@@ -121,7 +133,7 @@
                 <label class="select-label" for="direction-filter">Direction</label>
               </div>
               <div class="col s12 l1 filter-submit">
-                <button class="btn waves-effect waves-light deep-purple" type="submit">Search</button>
+                <button class="btn waves-effect waves-light primary-action" type="submit">Search</button>
               </div>
             </div>
           </form>
@@ -140,21 +152,21 @@
           <div class="row feature-row">
             <div class="col s12 m4">
               <div class="card-panel feature-card">
-                <span class="feature-number deep-purple-text">01</span>
+                <span class="feature-number">01</span>
                 <h3>Player shops</h3>
                 <p>Each member manages one storefront, keeping seller ownership clear.</p>
               </div>
             </div>
             <div class="col s12 m4">
               <div class="card-panel feature-card">
-                <span class="feature-number deep-purple-text">02</span>
+                <span class="feature-number">02</span>
                 <h3>Coin checkout</h3>
                 <p>Review quantity, stock, seller, and total price before placing an order.</p>
               </div>
             </div>
             <div class="col s12 m4">
               <div class="card-panel feature-card">
-                <span class="feature-number deep-purple-text">03</span>
+                <span class="feature-number">03</span>
                 <h3>Order tracking</h3>
                 <p>Buyers and sellers can follow delivery status and confirm completed trades.</p>
               </div>

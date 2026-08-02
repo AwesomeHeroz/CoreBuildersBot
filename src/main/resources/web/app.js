@@ -599,16 +599,26 @@ function renderItems() {
 
 function itemCard(item) {
   const card = element('article', 'item-card');
-  card.append(image(item.imageUrl, 'item-image', item.name));
+  const media = element('div', 'item-media');
+  media.append(image(item.imageUrl, 'item-image', item.name));
+  card.append(media);
   const body = element('div', 'item-body');
   const top = element('div', 'item-topline');
   top.append(element('span', 'category-chip', item.category));
   top.append(element('span', 'stock', `${item.stock} in stock`));
   body.append(top, element('h3', '', item.name), element('p', 'item-description', item.description));
-  const seller = element('p', 'seller', `${item.shopName} · ${item.sellerUsername}`);
+  const seller = element('div', 'seller');
+  const sellerAvatar = element('span', 'seller-avatar', String(item.shopName || item.sellerUsername || 'C').trim().charAt(0).toUpperCase());
+  const sellerDetails = element('span', 'seller-details');
+  sellerDetails.append(element('small', '', 'Sold by'));
+  sellerDetails.append(element('strong', '', `${item.shopName} · ${item.sellerUsername}`));
+  seller.append(sellerAvatar, sellerDetails);
   body.append(seller);
   const footer = element('div', 'item-footer');
-  footer.append(element('span', 'price', shortCoins(item.price)));
+  const priceBlock = element('div', 'price-block');
+  priceBlock.append(element('small', '', 'Price'));
+  priceBlock.append(element('span', 'price', shortCoins(item.price)));
+  footer.append(priceBlock);
   const add = element('button', 'btn-small waves-effect waves-light deep-purple', item.stock > 0 ? 'Add to cart' : 'Out of stock');
   add.type = 'button';
   const own = Boolean(item.ownedByCurrentUser);
@@ -996,6 +1006,15 @@ function bindEvents() {
   $('#search-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     state.page = 1;
+    try { await loadItems(); } catch (error) { notify(error.message, true); }
+  });
+  $('#reset-filters').addEventListener('click', async () => {
+    $('#search-query').value = '';
+    $('#category-filter').value = '';
+    $('#sort-filter').value = 'newest';
+    $('#direction-filter').value = 'desc';
+    state.page = 1;
+    updateMaterialFields();
     try { await loadItems(); } catch (error) { notify(error.message, true); }
   });
   $('#previous-page').addEventListener('click', async () => { state.page = Math.max(1, state.page - 1); await loadItems(); });
