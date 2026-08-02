@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Core Builders player marketplace for member-run Minecraft shops">
-  <meta name="theme-color" content="#09060d">
+  <meta name="theme-color" content="#080816">
   <title>Core Builders Marketplace</title>
   <link rel="icon" href="/core-logo.webp" type="image/webp">
   <link rel="stylesheet" href="/styles.css">
@@ -15,24 +15,26 @@
   <a class="skip-link" href="#marketplace">Skip to marketplace</a>
 
   <header class="topbar">
-    <a class="brand" href="#marketplace" aria-label="Core Builders Marketplace home">
-      <img class="brand-logo" src="/core-logo.webp" alt="">
-      <span class="brand-copy">
-        <strong>Core Builders</strong>
-        <small>Marketplace Network</small>
-      </span>
-    </a>
+    <div class="topbar-inner">
+      <a class="brand" href="#marketplace" aria-label="Core Builders Marketplace home">
+        <img class="brand-logo" src="/core-logo.webp" alt="">
+        <span class="brand-copy">
+          <strong>Core Builders</strong>
+          <small>Marketplace Network</small>
+        </span>
+      </a>
 
-    <nav class="nav" aria-label="Primary navigation">
-      <button class="nav-link active" data-section="marketplace">Marketplace</button>
-      <button class="nav-link" data-section="shop">My Shop</button>
-      <button class="nav-link" data-section="cart">Cart <span id="cart-count" class="badge">0</span></button>
-      <button class="nav-link" data-section="orders">Orders</button>
-      <button class="nav-link" data-section="sales">Sales</button>
-    </nav>
+      <nav class="nav" aria-label="Primary navigation">
+        <button class="nav-link active" data-section="marketplace">Marketplace</button>
+        <button class="nav-link" data-section="shop">My Shop</button>
+        <button class="nav-link" data-section="cart">Cart <span id="cart-count" class="badge">0</span></button>
+        <button class="nav-link" data-section="orders">Orders</button>
+        <button class="nav-link" data-section="sales">Sales</button>
+      </nav>
 
-    <div id="auth-area" class="auth-area">
-      <button class="button primary" type="button" disabled>Loading…</button>
+      <div id="auth-area" class="auth-area">
+        <button class="button primary" type="button" disabled>Loading…</button>
+      </div>
     </div>
   </header>
 
@@ -42,46 +44,67 @@
     <section id="marketplace" class="view active" aria-labelledby="marketplace-title">
       <div class="hero-frame">
         <img class="hero-art" src="/core-banner.webp" alt="Core Builders End-themed fortress artwork">
-        <div class="hero-label" aria-hidden="true">
-          <span>Core Network</span>
-          <strong>Player Marketplace</strong>
+        <div class="hero-copy">
+          <p class="eyebrow">Core Builders · Player Marketplace</p>
+          <h1 id="marketplace-title">Trade gear.<br>Build bigger.</h1>
+          <p>Buy from trusted member shops, fund community projects, and coordinate every delivery through the Core Builders network.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#market-index">Explore marketplace</a>
+            <a class="button ghost" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">Join Discord</a>
+          </div>
+        </div>
+        <div class="hero-stat" aria-label="Active marketplace listings">
+          <span id="result-count">0</span>
+          <strong>Active listings</strong>
+          <small>Live marketplace inventory</small>
         </div>
       </div>
 
-      <div class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Member-run shops · Coin economy</p>
-          <h1 id="marketplace-title">Trade gear. Fund builds. Keep moving.</h1>
-          <p>Browse trusted member listings, compare prices, and coordinate every completed order through Core Builders.</p>
-        </div>
-        <div class="hero-stat" aria-label="Active marketplace listings">
-          <small>Market status</small>
-          <span id="result-count">0</span>
-          <strong>Active listings</strong>
-        </div>
+      <div class="network-strip" aria-label="Core Builders network">
+        <span>CORE NETWORK</span>
+        <strong>2B2T</strong>
+        <i></i>
+        <strong>6B6T</strong>
+        <i></i>
+        <strong>EXTREMECRAFT</strong>
+        <i></i>
+        <strong>PLAY.COREBUILDERS.GG</strong>
       </div>
 
       <div class="market-principles" aria-label="Marketplace features">
-        <div><span>01</span><strong>Member shops</strong><small>One shop per approved player</small></div>
-        <div><span>02</span><strong>Clear pricing</strong><small>All marketplace purchases use coins</small></div>
-        <div><span>03</span><strong>Order coordination</strong><small>Buyer and seller complete delivery together</small></div>
+        <article>
+          <span>01</span>
+          <div><strong>Member-run shops</strong><small>One verified shop for each approved player.</small></div>
+        </article>
+        <article>
+          <span>02</span>
+          <div><strong>Coin economy</strong><small>Simple pricing with no confusing marketplace currency.</small></div>
+        </article>
+        <article>
+          <span>03</span>
+          <div><strong>Coordinated delivery</strong><small>Buyer and seller complete each order together.</small></div>
+        </article>
+      </div>
+
+      <div id="market-index" class="market-heading">
+        <div>
+          <p class="eyebrow">Browse the market</p>
+          <h2>Find your next loadout</h2>
+        </div>
+        <p>Search kits, materials, tools, redstone supplies, and member services.</p>
       </div>
 
       <form id="search-form" class="filter-bar">
-        <div class="filter-heading" aria-hidden="true">
-          <span>Marketplace index</span>
-          <strong>Find a listing</strong>
-        </div>
         <label class="search-field">
-          <span class="sr-only">Search items</span>
-          <input id="search-query" type="search" maxlength="100" placeholder="Search items, materials, kits…">
+          <span>Search</span>
+          <input id="search-query" type="search" maxlength="100" placeholder="Items, materials, kits…">
         </label>
         <label>
-          <span class="sr-only">Category</span>
+          <span>Category</span>
           <select id="category-filter"><option value="">All categories</option></select>
         </label>
         <label>
-          <span class="sr-only">Sort</span>
+          <span>Sort by</span>
           <select id="sort-filter">
             <option value="newest">Newest</option>
             <option value="price">Price</option>
@@ -90,13 +113,13 @@
           </select>
         </label>
         <label>
-          <span class="sr-only">Direction</span>
+          <span>Order</span>
           <select id="direction-filter">
             <option value="desc">Descending</option>
             <option value="asc">Ascending</option>
           </select>
         </label>
-        <button class="button primary" type="submit">Search</button>
+        <button class="button primary" type="submit">Search market</button>
       </form>
 
       <div id="item-grid" class="item-grid" aria-live="polite"></div>
@@ -109,7 +132,7 @@
 
     <section id="shop" class="view" aria-labelledby="shop-title">
       <div class="section-heading">
-        <div><p class="eyebrow">One shop per approved player</p><h1 id="shop-title">My Shop</h1></div>
+        <div><p class="eyebrow">Seller headquarters</p><h1 id="shop-title">My Shop</h1></div>
         <span class="section-code" aria-hidden="true">SHOP / CONTROL</span>
       </div>
       <div id="shop-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to manage your shop.</div>
@@ -276,9 +299,28 @@
   </div>
 
   <footer class="site-footer">
-    <div class="footer-brand"><img src="/core-logo.webp" alt=""><span><strong>Core Builders</strong><small>Build together. Trade fairly.</small></span></div>
-    <p>Core Builders marketplace · Purchases use coins</p>
-    <a href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">discord.gg/corebuilders</a>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="/core-logo.webp" alt="">
+        <span><strong>Core Builders</strong><small>Build together. Trade fairly.</small></span>
+      </div>
+      <div class="footer-column">
+        <strong>Marketplace</strong>
+        <span>Member-run shops</span>
+        <span>Purchases use coins</span>
+        <span>Coordinated delivery</span>
+      </div>
+      <div class="footer-column">
+        <strong>Community</strong>
+        <a href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">Join Discord</a>
+        <span>play.corebuilders.gg</span>
+        <span>2b2t · 6b6t · ExtremeCraft</span>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>Core Builders Marketplace</p>
+      <p>Built for the Core Builders community.</p>
+    </div>
   </footer>
 </body>
 </html>
