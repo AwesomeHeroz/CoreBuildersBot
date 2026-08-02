@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
  * message publishing, and ticket permissions to focused collaborators. */
 public final class ApplicationDiscordListener extends ListenerAdapter implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(ApplicationDiscordListener.class);
-    private static final int QUESTIONS_PER_MODAL = 10;
+    private static final int QUESTIONS_PER_MODAL = 5;
 
     private final ApplicationService applications;
     private final ApplicationConfig config;
