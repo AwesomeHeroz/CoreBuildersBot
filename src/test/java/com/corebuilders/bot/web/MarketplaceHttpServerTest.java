@@ -288,6 +288,10 @@ class MarketplaceHttpServerTest {
         Response logo = request("GET", "/core-builders-logo.webp", null, null, null);
         assertEquals(200, logo.status());
         assertEquals("image/webp", logo.headers().firstValue("Content-Type").orElseThrow());
+
+        Response banner = request("GET", "/core-builders-banner.webp", null, null, null);
+        assertEquals(200, banner.status());
+        assertEquals("image/webp", banner.headers().firstValue("Content-Type").orElseThrow());
         assertEquals(405, request("POST", "/styles.css", null, null, null).status());
         assertEquals(401, request("GET", "/api/cart", null, null, null).status());
         assertEquals(400, request("GET", "/api/items?sort=unknown", null, null, null).status());

@@ -660,6 +660,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             case "/app.js" -> "/web/app.js";
             case "/styles.css" -> "/web/styles.css";
             case "/core-builders-logo.webp" -> "/web/core-builders-logo.webp";
+            case "/core-builders-banner.webp" -> "/web/core-builders-banner.webp";
             default -> "/web/index.html";
         };
         byte[] bytes;

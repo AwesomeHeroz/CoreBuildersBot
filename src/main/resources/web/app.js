@@ -14,7 +14,7 @@ const state = {
 };
 
 const fallbackImage = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400"><rect width="640" height="400" fill="#eceff1"/><rect x="230" y="125" width="180" height="150" rx="12" fill="#fff" stroke="#b0bec5" stroke-width="8"/><path d="m252 235 48-52 39 39 27-29 25 42z" fill="#7e57c2"/><circle cx="286" cy="164" r="17" fill="#b39ddb"/></svg>'
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#120b22"/><stop offset="1" stop-color="#281543"/></linearGradient><linearGradient id="a" x1="0" x2="1"><stop stop-color="#9c4dff"/><stop offset="1" stop-color="#dc54ff"/></linearGradient></defs><rect width="640" height="400" fill="url(#g)"/><path d="M0 80h640M0 160h640M0 240h640M0 320h640M80 0v400M160 0v400M240 0v400M320 0v400M400 0v400M480 0v400M560 0v400" stroke="#fff" stroke-opacity=".035"/><path d="m320 92 92 108-92 108-92-108z" fill="none" stroke="url(#a)" stroke-width="13"/><path d="m320 126 62 74-62 74-62-74z" fill="url(#a)" opacity=".72"/><text x="320" y="355" fill="#d9b8ff" font-family="Arial,sans-serif" font-size="24" font-weight="700" text-anchor="middle" letter-spacing="5">CORE BUILDERS</text></svg>'
 );
 
 const $ = (selector) => document.querySelector(selector);
