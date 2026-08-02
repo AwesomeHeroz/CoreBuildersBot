@@ -14,21 +14,49 @@ const state = {
 };
 
 const fallbackImage = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#252525"/><stop offset="1" stop-color="#101010"/></linearGradient></defs><rect width="640" height="400" fill="url(#g)"/><path d="M0 0h640v16H0z" fill="#ffb320"/><path d="M245 145h150v110H245z" fill="none" stroke="#ffb320" stroke-width="14"/><path d="m245 190 75-45 75 45-75 45z" fill="none" stroke="#7b49c7" stroke-width="14"/></svg>'
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400"><rect width="640" height="400" fill="#eceff1"/><rect x="230" y="125" width="180" height="150" rx="12" fill="#fff" stroke="#b0bec5" stroke-width="8"/><path d="m252 235 48-52 39 39 27-29 25 42z" fill="#7e57c2"/><circle cx="286" cy="164" r="17" fill="#b39ddb"/></svg>'
 );
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-const jq = window.jQuery;
 let itemPreviewObjectUrl = null;
 
-function requireJQuery() {
-  if (!jq) throw new Error('The website modal library could not be loaded. Refresh the page and try again.');
-  return jq;
+function initMaterialize() {
+  const sidenavs = document.querySelectorAll('.sidenav');
+  if (window.M?.Sidenav) {
+    window.M.Sidenav.init(sidenavs);
+  } else {
+    const navigation = $('#mobile-navigation');
+    $('.mobile-menu-button')?.addEventListener('click', () => navigation?.classList.add('sidenav-fallback-open'));
+    navigation?.querySelectorAll('.sidenav-close').forEach((link) => {
+      link.addEventListener('click', () => navigation.classList.remove('sidenav-fallback-open'));
+    });
+  }
+  if (window.M?.Waves?.displayEffect) window.M.Waves.displayEffect();
 }
 
-function setModalOpen(open) {
-  document.body.classList.toggle('modal-open', open);
+function updateMaterialFields() {
+  if (window.M?.updateTextFields) window.M.updateTextFields();
+  document.querySelectorAll('textarea.materialize-textarea').forEach((textarea) => {
+    if (window.M?.textareaAutoResize) window.M.textareaAutoResize(textarea);
+  });
+}
+
+function openPopover(modal, focusTarget) {
+  modal.setAttribute('aria-hidden', 'false');
+  if (typeof modal.showPopover === 'function') modal.showPopover();
+  else modal.classList.add('popover-fallback-open');
+  document.body.classList.add('modal-open');
+  window.setTimeout(() => (focusTarget || modal).focus?.(), 0);
+}
+
+function closePopover(modal) {
+  modal.setAttribute('aria-hidden', 'true');
+  if (typeof modal.hidePopover === 'function' && modal.matches(':popover-open')) modal.hidePopover();
+  else modal.classList.remove('popover-fallback-open');
+  if (!document.querySelector('.modal:popover-open, .modal.popover-fallback-open')) {
+    document.body.classList.remove('modal-open');
+  }
 }
 
 function showActionModal({
@@ -39,44 +67,54 @@ function showActionModal({
   danger = false,
   input = null
 }) {
-  const $jq = requireJQuery();
-  const $modal = $jq('#action-modal');
+  const modal = $('#action-modal');
   const previousFocus = document.activeElement;
+  const titleNode = $('#action-modal-title');
+  const messageNode = $('#action-modal-message');
+  const confirmButton = $('#action-modal-confirm');
+  const cancelButton = $('#action-modal-cancel');
+  const closeButton = $('#action-modal-close');
+  const errorNode = $('#action-modal-error');
+  const inputGroup = $('#action-modal-input-group');
+  const inputNode = $('#action-modal-input');
 
-  $jq('#action-modal-title').text(title || 'Please confirm');
-  $jq('#action-modal-message').text(message || '');
-  $jq('#action-modal-confirm')
-    .text(confirmText)
-    .toggleClass('danger', Boolean(danger))
-    .toggleClass('primary', !danger);
-  $jq('#action-modal-cancel').text(cancelText);
-  $jq('#action-modal-error').addClass('hidden').text('');
+  titleNode.textContent = title || 'Please confirm';
+  messageNode.textContent = message || '';
+  confirmButton.textContent = confirmText;
+  confirmButton.className = danger
+    ? 'btn waves-effect waves-light red'
+    : 'btn waves-effect waves-light deep-purple';
+  cancelButton.textContent = cancelText;
+  errorNode.classList.add('hidden');
+  errorNode.textContent = '';
 
-  const $inputGroup = $jq('#action-modal-input-group');
-  const $input = $jq('#action-modal-input');
   if (input) {
-    $inputGroup.removeClass('hidden');
-    $jq('#action-modal-input-label').text(input.label || 'Details');
-    $jq('#action-modal-input-help').text(input.help || '');
-    $input
-      .val(input.value || '')
-      .attr('minlength', input.minLength || 0)
-      .attr('maxlength', input.maxLength || 500)
-      .attr('placeholder', input.placeholder || '');
+    inputGroup.classList.remove('hidden');
+    $('#action-modal-input-label').textContent = input.label || 'Details';
+    $('#action-modal-input-help').textContent = input.help || '';
+    inputNode.value = input.value || '';
+    inputNode.minLength = input.minLength || 0;
+    inputNode.maxLength = input.maxLength || 500;
+    inputNode.placeholder = input.placeholder || '';
   } else {
-    $inputGroup.addClass('hidden');
-    $input.val('').removeAttr('minlength maxlength placeholder');
+    inputGroup.classList.add('hidden');
+    inputNode.value = '';
+    inputNode.removeAttribute('minlength');
+    inputNode.removeAttribute('maxlength');
+    inputNode.removeAttribute('placeholder');
   }
+  updateMaterialFields();
 
   return new Promise((resolve) => {
     let settled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
+
     const finish = (value) => {
       if (settled) return;
       settled = true;
-      $modal.addClass('hidden').attr('aria-hidden', 'true').off('.coreModal');
-      $jq(document).off('.coreModal');
-      $jq('#action-modal-confirm, #action-modal-cancel, #action-modal-close').off('.coreModal');
-      setModalOpen(false);
+      controller.abort();
+      closePopover(modal);
       if (previousFocus instanceof HTMLElement) previousFocus.focus();
       resolve(value);
     };
@@ -87,32 +125,27 @@ function showActionModal({
         finish(true);
         return;
       }
-      const value = String($input.val() || '').trim();
+      const value = String(inputNode.value || '').trim();
       const minLength = input.minLength || 0;
       const maxLength = input.maxLength || 500;
       if (value.length < minLength || value.length > maxLength) {
-        $jq('#action-modal-error')
-          .text(`Enter between ${minLength} and ${maxLength} characters.`)
-          .removeClass('hidden');
-        $input.trigger('focus');
+        errorNode.textContent = `Enter between ${minLength} and ${maxLength} characters.`;
+        errorNode.classList.remove('hidden');
+        inputNode.focus();
         return;
       }
       finish(value);
     };
 
-    $jq('#action-modal-confirm').on('click.coreModal', accept);
-    $jq('#action-modal-cancel, #action-modal-close').on('click.coreModal', cancel);
-    $modal.on('mousedown.coreModal', (event) => {
-      if (event.target === $modal.get(0)) cancel();
-    });
-    $jq(document).on('keydown.coreModal', (event) => {
+    confirmButton.addEventListener('click', accept, { signal });
+    cancelButton.addEventListener('click', cancel, { signal });
+    closeButton.addEventListener('click', cancel, { signal });
+    document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') cancel();
-      if (event.key === 'Enter' && !input && !$jq(event.target).is('textarea')) accept();
-    });
+      if (event.key === 'Enter' && !input && event.target?.tagName !== 'TEXTAREA') accept();
+    }, { signal });
 
-    $modal.removeClass('hidden').attr('aria-hidden', 'false');
-    setModalOpen(true);
-    window.setTimeout(() => (input ? $input : $jq('#action-modal-confirm')).trigger('focus'), 0);
+    openPopover(modal, input ? inputNode : confirmButton);
   });
 }
 
@@ -125,32 +158,27 @@ function showPromptModal(options) {
 }
 
 function openRegisterModal() {
-  const $jq = requireJQuery();
-  const $modal = $jq('#register-modal');
+  const modal = $('#register-modal');
   const previousFocus = document.activeElement;
+  const controller = new AbortController();
+  const { signal } = controller;
   let closed = false;
 
   const close = () => {
     if (closed) return;
     closed = true;
-    $modal.addClass('hidden').attr('aria-hidden', 'true').off('.registerModal');
-    $jq(document).off('.registerModal');
-    $jq('#register-close, #register-cancel').off('.registerModal');
-    setModalOpen(false);
+    controller.abort();
+    closePopover(modal);
     if (previousFocus instanceof HTMLElement) previousFocus.focus();
   };
 
-  $jq('#register-close, #register-cancel').on('click.registerModal', close);
-  $modal.on('mousedown.registerModal', (event) => {
-    if (event.target === $modal.get(0)) close();
-  });
-  $jq(document).on('keydown.registerModal', (event) => {
+  $('#register-close').addEventListener('click', close, { signal });
+  $('#register-cancel').addEventListener('click', close, { signal });
+  document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') close();
-  });
+  }, { signal });
 
-  $modal.removeClass('hidden').attr('aria-hidden', 'false');
-  setModalOpen(true);
-  window.setTimeout(() => $jq('#register-discord-link').trigger('focus'), 0);
+  openPopover(modal, $('#register-discord-link'));
 }
 
 function openCodeLoginModal({
@@ -161,9 +189,10 @@ function openCodeLoginModal({
   accountLabel,
   guidanceType
 }) {
-  const $jq = requireJQuery();
-  const $modal = $jq('#minecraft-login-modal');
+  const modal = $('#minecraft-login-modal');
   const previousFocus = document.activeElement;
+  const controller = new AbortController();
+  const { signal } = controller;
   let closed = false;
   let decisionResolver = null;
 
@@ -178,64 +207,62 @@ function openCodeLoginModal({
     if (closed) return;
     closed = true;
     finishDecision(accepted);
-    $modal.addClass('hidden').attr('aria-hidden', 'true').off('.codeLogin');
-    $jq(document).off('.codeLogin');
-    $jq('#minecraft-login-cancel, #minecraft-login-close, #minecraft-login-confirm').off('.codeLogin');
-    setModalOpen(false);
+    controller.abort();
+    closePopover(modal);
     if (previousFocus instanceof HTMLElement) previousFocus.focus();
   };
 
-  $jq('#minecraft-login-title').text(verifyTitle);
-  $jq('#minecraft-login-status').text('Creating a one-time login code…');
-  $jq('#minecraft-login-code').text('--------');
-  $jq('#minecraft-login-command').text('');
-  $jq('#minecraft-login-instructions').text(instructions);
-  $jq('#minecraft-login-account-label').text(accountLabel);
-  $jq('#discord-login-guidance').toggleClass('hidden', guidanceType !== 'discord');
-  $jq('#minecraft-login-guidance').toggleClass('hidden', guidanceType !== 'minecraft');
-  $jq('#minecraft-login-challenge').removeClass('hidden');
-  $jq('#minecraft-login-account').addClass('hidden');
-  $jq('#minecraft-login-confirm').prop('disabled', false).text('Continue').addClass('hidden');
-  $jq('#minecraft-login-cancel').text('Cancel');
+  $('#minecraft-login-title').textContent = verifyTitle;
+  $('#minecraft-login-status').textContent = 'Creating a one-time login code…';
+  $('#minecraft-login-code').textContent = '--------';
+  $('#minecraft-login-command').textContent = '';
+  $('#minecraft-login-instructions').textContent = instructions;
+  $('#minecraft-login-account-label').textContent = accountLabel;
+  $('#discord-login-guidance').classList.toggle('hidden', guidanceType !== 'discord');
+  $('#minecraft-login-guidance').classList.toggle('hidden', guidanceType !== 'minecraft');
+  $('#minecraft-login-challenge').classList.remove('hidden');
+  $('#minecraft-login-account').classList.add('hidden');
+  $('#minecraft-login-confirm').disabled = false;
+  $('#minecraft-login-confirm').textContent = 'Continue';
+  $('#minecraft-login-confirm').classList.add('hidden');
+  $('#minecraft-login-cancel').textContent = 'Cancel';
 
-  $jq('#minecraft-login-cancel, #minecraft-login-close').on('click.codeLogin', () => close(false));
-  $modal.on('mousedown.codeLogin', (event) => {
-    if (event.target === $modal.get(0)) close(false);
-  });
-  $jq(document).on('keydown.codeLogin', (event) => {
+  $('#minecraft-login-cancel').addEventListener('click', () => close(false), { signal });
+  $('#minecraft-login-close').addEventListener('click', () => close(false), { signal });
+  document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') close(false);
-  });
+  }, { signal });
 
-  $modal.removeClass('hidden').attr('aria-hidden', 'false');
-  setModalOpen(true);
-  window.setTimeout(() => $jq('#minecraft-login-cancel').trigger('focus'), 0);
+  openPopover(modal, $('#minecraft-login-cancel'));
 
   return {
     isOpen: () => !closed,
     showChallenge(challenge) {
       if (closed) return;
-      $jq('#minecraft-login-code').text(challenge.code);
-      $jq('#minecraft-login-command').text(challenge.command);
-      $jq('#minecraft-login-status').text(waitingText);
+      $('#minecraft-login-code').textContent = challenge.code;
+      $('#minecraft-login-command').textContent = challenge.command;
+      $('#minecraft-login-status').textContent = waitingText;
     },
     confirmAccount(displayName) {
       if (closed) return Promise.resolve(false);
-      $jq('#minecraft-login-title').text(confirmTitle);
-      $jq('#minecraft-login-status').text('The login code was verified successfully.');
-      $jq('#minecraft-login-challenge').addClass('hidden');
-      $jq('#minecraft-login-name').text(displayName);
-      $jq('#minecraft-login-account').removeClass('hidden');
-      $jq('#minecraft-login-confirm').removeClass('hidden');
-      $jq('#minecraft-login-cancel').text('Use another account');
+      $('#minecraft-login-title').textContent = confirmTitle;
+      $('#minecraft-login-status').textContent = 'The login code was verified successfully.';
+      $('#minecraft-login-challenge').classList.add('hidden');
+      $('#minecraft-login-name').textContent = displayName;
+      $('#minecraft-login-account').classList.remove('hidden');
+      $('#minecraft-login-confirm').classList.remove('hidden');
+      $('#minecraft-login-cancel').textContent = 'Use another account';
       return new Promise((resolve) => {
         decisionResolver = resolve;
-        $jq('#minecraft-login-confirm')
-          .off('click.codeLoginConfirm')
-          .on('click.codeLoginConfirm', () => {
-            finishDecision(true);
-            $jq('#minecraft-login-confirm').prop('disabled', true).text('Signing in…');
-          })
-          .trigger('focus');
+        const confirmButton = $('#minecraft-login-confirm');
+        const confirm = () => {
+          confirmButton.removeEventListener('click', confirm);
+          finishDecision(true);
+          confirmButton.disabled = true;
+          confirmButton.textContent = 'Signing in…';
+        };
+        confirmButton.addEventListener('click', confirm, { signal });
+        confirmButton.focus();
       });
     },
     close
@@ -285,48 +312,47 @@ async function api(path, options = {}) {
 }
 
 function uploadListingImage(file) {
-  const $jq = requireJQuery();
   const data = new FormData();
   data.append('image', file, file.name);
   $('#item-image-upload-status').textContent = 'Uploading image…';
 
   return new Promise((resolve, reject) => {
-    $jq.ajax({
-      url: '/api/me/shop/images',
-      method: 'POST',
-      data,
-      processData: false,
-      contentType: false,
-      dataType: 'json',
-      headers: {
-        Accept: 'application/json',
-        'X-CSRF-Token': state.csrf || ''
-      },
-      xhr() {
-        const xhr = $jq.ajaxSettings.xhr();
-        if (xhr.upload) {
-          xhr.upload.addEventListener('progress', (event) => {
-            if (!event.lengthComputable) return;
-            const percent = Math.max(1, Math.round((event.loaded / event.total) * 100));
-            $('#item-image-upload-status').textContent = `Uploading image… ${percent}%`;
-          });
-        }
-        return xhr;
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/me/shop/images');
+    xhr.setRequestHeader('Accept', 'application/json');
+    if (state.csrf) xhr.setRequestHeader('X-CSRF-Token', state.csrf);
+
+    xhr.upload.addEventListener('progress', (event) => {
+      if (!event.lengthComputable) return;
+      const percent = Math.max(1, Math.round((event.loaded / event.total) * 100));
+      $('#item-image-upload-status').textContent = `Uploading image… ${percent}%`;
+    });
+
+    xhr.addEventListener('load', () => {
+      let payload = null;
+      try { payload = JSON.parse(xhr.responseText || '{}'); }
+      catch (_) { payload = null; }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        $('#item-image-upload-status').textContent = 'Image uploaded.';
+        resolve(payload);
+        return;
       }
-    }).done((response) => {
-      $('#item-image-upload-status').textContent = 'Image uploaded.';
-      resolve(response);
-    }).fail((xhr) => {
-      let message = `Image upload failed with status ${xhr.status}`;
-      try {
-        const payload = xhr.responseJSON || JSON.parse(xhr.responseText || '{}');
-        message = payload?.error?.message || message;
-      } catch (_) {
-        // Keep the status-based fallback.
-      }
+      const message = payload?.error?.message || `Image upload failed with status ${xhr.status}`;
       $('#item-image-upload-status').textContent = 'Image upload failed.';
       reject(new Error(message));
     });
+
+    xhr.addEventListener('error', () => {
+      $('#item-image-upload-status').textContent = 'Image upload failed.';
+      reject(new Error('Image upload failed because of a network error.'));
+    });
+
+    xhr.addEventListener('abort', () => {
+      $('#item-image-upload-status').textContent = 'Image upload cancelled.';
+      reject(new Error('Image upload was cancelled.'));
+    });
+
+    xhr.send(data);
   });
 }
 
@@ -353,6 +379,8 @@ function showItemImagePreview(url, status) {
 function clearItemImage() {
   clearItemPreviewObjectUrl();
   $('#item-image-file').value = '';
+  const filePath = document.querySelector('#item-form .file-path');
+  if (filePath) filePath.value = '';
   $('#item-image').value = '';
   showItemImagePreview('', '');
 }
@@ -467,13 +495,13 @@ function renderAuth(balance) {
   const area = $('#auth-area');
   area.replaceChildren();
   if (!state.me) {
-    const register = element('button', 'button ghost', 'Register');
+    const register = element('button', 'btn-small btn-flat waves-effect', 'Register');
     register.type = 'button';
     register.addEventListener('click', openRegisterModal);
-    const discordLogin = element('button', 'button discord', 'Log in through Discord Bot');
+    const discordLogin = element('button', 'btn-small waves-effect waves-light indigo', 'Log in through Discord Bot');
     discordLogin.type = 'button';
     discordLogin.addEventListener('click', startDiscordBotLogin);
-    const minecraftLogin = element('button', 'button primary', 'Log in through Minecraft');
+    const minecraftLogin = element('button', 'btn-small waves-effect waves-light deep-purple', 'Log in through Minecraft');
     minecraftLogin.type = 'button';
     minecraftLogin.addEventListener('click', startMinecraftLogin);
     area.append(register, discordLogin, minecraftLogin);
@@ -485,7 +513,7 @@ function renderAuth(balance) {
   details.append(element('strong', '', state.me.username));
   details.append(element('small', '', shortCoins(balance)));
   chip.append(details);
-  const logout = element('button', 'button ghost', 'Log out');
+  const logout = element('button', 'btn-small btn-flat waves-effect', 'Log out');
   logout.type = 'button';
   logout.addEventListener('click', async () => {
     try {
@@ -503,7 +531,7 @@ function renderAuth(balance) {
   });
   area.append(chip);
   if (!state.me.discordUserId) {
-    const linkDiscord = element('a', 'button discord', 'Link Discord');
+    const linkDiscord = element('a', 'btn-small waves-effect waves-light indigo', 'Link Discord');
     linkDiscord.href = '/api/account/discord/link';
     area.append(linkDiscord);
   }
@@ -581,7 +609,7 @@ function itemCard(item) {
   body.append(seller);
   const footer = element('div', 'item-footer');
   footer.append(element('span', 'price', shortCoins(item.price)));
-  const add = element('button', 'button primary', item.stock > 0 ? 'Add to cart' : 'Out of stock');
+  const add = element('button', 'btn-small waves-effect waves-light deep-purple', item.stock > 0 ? 'Add to cart' : 'Out of stock');
   add.type = 'button';
   const own = Boolean(item.ownedByCurrentUser);
   const marketplaceAccountReady = Boolean(state.me?.discordUserId);
@@ -635,6 +663,7 @@ function renderShop() {
     status.textContent = 'Not created';
     status.classList.add('inactive');
   }
+  updateMaterialFields();
   const list = $('#my-items');
   list.replaceChildren();
   $('#my-listing-count').textContent = `${state.myItems.length} listing${state.myItems.length === 1 ? '' : 's'}`;
@@ -650,10 +679,10 @@ function renderShop() {
     info.append(element('p', '', `${item.category} · ${shortCoins(item.price)} · ${item.stock} in stock`));
     if (!item.active) info.append(element('span', 'status-chip inactive', 'Inactive'));
     const actions = element('div', 'management-actions');
-    const edit = element('button', 'button ghost', 'Edit');
+    const edit = element('button', 'btn-small btn-flat waves-effect', 'Edit');
     edit.type = 'button';
     edit.addEventListener('click', () => beginItemEdit(item));
-    const remove = element('button', 'button danger', 'Deactivate');
+    const remove = element('button', 'btn-small waves-effect waves-light red', 'Deactivate');
     remove.type = 'button';
     remove.disabled = !item.active;
     remove.addEventListener('click', () => deactivateItem(item));
@@ -677,6 +706,7 @@ function beginItemEdit(item) {
   $('#item-price').value = item.price;
   $('#item-category').value = item.category;
   $('#item-active').checked = item.active;
+  updateMaterialFields();
   $('#item-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -690,6 +720,7 @@ function resetItemForm() {
   $('#item-price').value = '1';
   $('#item-active').checked = true;
   showItemImagePreview('', '');
+  updateMaterialFields();
 }
 
 async function deactivateItem(item) {
@@ -738,7 +769,7 @@ function renderCart() {
     input.max = String(Math.min(999, line.item.stock));
     input.value = String(line.quantity);
     input.setAttribute('aria-label', `Quantity for ${line.item.name}`);
-    const update = element('button', 'button ghost', 'Update');
+    const update = element('button', 'btn-small btn-flat waves-effect', 'Update');
     update.type = 'button';
     update.addEventListener('click', async () => {
       try {
@@ -820,7 +851,7 @@ function renderOrders(orders) {
 
       if (line.status === 'PENDING_DELIVERY') {
         const actions = element('div', 'management-actions');
-        const delivered = element('button', 'button primary', 'Mark delivered');
+        const delivered = element('button', 'btn-small waves-effect waves-light deep-purple', 'Mark delivered');
         delivered.type = 'button';
         delivered.addEventListener('click', async () => {
           const accepted = await showConfirmModal({
@@ -836,7 +867,7 @@ function renderOrders(orders) {
           } catch (error) { notify(error.message, true); }
         });
 
-        const cancel = element('button', 'button ghost', 'Cancel');
+        const cancel = element('button', 'btn-small btn-flat waves-effect', 'Cancel');
         cancel.type = 'button';
         cancel.addEventListener('click', async () => {
           const accepted = await showConfirmModal({
@@ -855,7 +886,7 @@ function renderOrders(orders) {
         actions.append(delivered, cancel);
         row.append(actions);
       } else if (line.status === 'DELIVERED' && !line.fundsReleased) {
-        const dispute = element('button', 'button ghost', 'Report problem');
+        const dispute = element('button', 'btn-small btn-flat waves-effect', 'Report problem');
         dispute.type = 'button';
         dispute.addEventListener('click', async () => {
           const reason = await showPromptModal({
@@ -911,7 +942,7 @@ function renderSales(sales) {
     card.append(head);
 
     if (sale.status === 'PENDING_DELIVERY') {
-      const cancel = element('button', 'button ghost', 'Cancel order');
+      const cancel = element('button', 'btn-small btn-flat waves-effect', 'Cancel order');
       cancel.type = 'button';
       cancel.addEventListener('click', async () => {
         const accepted = await showConfirmModal({
@@ -929,7 +960,7 @@ function renderSales(sales) {
       });
       card.append(cancel);
     } else if (sale.status === 'DELIVERED' && !sale.fundsReleased) {
-      const confirm = element('button', 'button primary', 'Confirm delivery');
+      const confirm = element('button', 'btn-small waves-effect waves-light deep-purple', 'Confirm delivery');
       confirm.type = 'button';
       confirm.addEventListener('click', async () => {
         const accepted = await showConfirmModal({
@@ -1046,6 +1077,7 @@ function handleLoginResult() {
 }
 
 async function bootstrap() {
+  initMaterialize();
   bindEvents();
   handleLoginResult();
   try {
