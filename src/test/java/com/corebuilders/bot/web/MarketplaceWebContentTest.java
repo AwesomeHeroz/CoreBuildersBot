@@ -39,6 +39,19 @@ class MarketplaceWebContentTest {
         assertTrue(!javascript.contains(" CP`"));
     }
 
+
+    @Test
+    void exposesCoreBuildersBrandTheme() throws IOException {
+        String html = resource("/web/index.html");
+        String css = resource("/web/styles.css");
+
+        assertTrue(html.contains("/core-banner.webp"));
+        assertTrue(html.contains("/core-logo.webp"));
+        assertTrue(html.contains("Marketplace Network"));
+        assertTrue(css.contains("--end-stone"));
+        assertTrue(css.contains("--purple-bright"));
+    }
+
     @Test
     void exposesBuyerSellerDeliveryAndCancellationActions() throws IOException {
         String javascript = resource("/web/app.js");

@@ -660,6 +660,8 @@ public final class MarketplaceHttpServer implements AutoCloseable {
             case "/app.js" -> "/web/app.js";
             case "/styles.css" -> "/web/styles.css";
             case "/jquery-3.7.1.min.js" -> "/web/jquery-3.7.1.min.js";
+            case "/core-banner.webp" -> "/web/core-banner.webp";
+            case "/core-logo.webp" -> "/web/core-logo.webp";
             default -> "/web/index.html";
         };
         byte[] bytes;
@@ -894,6 +896,7 @@ public final class MarketplaceHttpServer implements AutoCloseable {
     private static String contentType(String resource) {
         if (resource.endsWith(".js")) return "text/javascript; charset=utf-8";
         if (resource.endsWith(".css")) return "text/css; charset=utf-8";
+        if (resource.endsWith(".webp")) return "image/webp";
         return "text/html; charset=utf-8";
     }
 

@@ -282,6 +282,12 @@ class MarketplaceHttpServerTest {
         assertTrue(index.headers().firstValue("Content-Type").orElseThrow().startsWith("text/html"));
         assertTrue(index.headers().firstValue("Content-Security-Policy").isPresent());
         assertEquals(200, request("GET", "/app.js", null, null, null).status());
+        Response banner = request("GET", "/core-banner.webp", null, null, null);
+        assertEquals(200, banner.status());
+        assertEquals("image/webp", banner.headers().firstValue("Content-Type").orElseThrow());
+        Response logo = request("HEAD", "/core-logo.webp", null, null, null);
+        assertEquals(200, logo.status());
+        assertEquals("image/webp", logo.headers().firstValue("Content-Type").orElseThrow());
         assertEquals(405, request("POST", "/styles.css", null, null, null).status());
         assertEquals(401, request("GET", "/api/cart", null, null, null).status());
         assertEquals(400, request("GET", "/api/items?sort=unknown", null, null, null).status());
