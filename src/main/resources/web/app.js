@@ -14,7 +14,7 @@ const state = {
 };
 
 const fallbackImage = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#272e40"/><stop offset="1" stop-color="#111620"/></linearGradient></defs><rect width="640" height="400" fill="url(#g)"/><path d="M245 145h150v110H245z" fill="none" stroke="#7c5cff" stroke-width="14"/><path d="m245 190 75-45 75 45-75 45z" fill="none" stroke="#4d8dff" stroke-width="14"/></svg>'
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#252525"/><stop offset="1" stop-color="#101010"/></linearGradient></defs><rect width="640" height="400" fill="url(#g)"/><path d="M0 0h640v16H0z" fill="#ffb320"/><path d="M245 145h150v110H245z" fill="none" stroke="#ffb320" stroke-width="14"/><path d="m245 190 75-45 75 45-75 45z" fill="none" stroke="#7b49c7" stroke-width="14"/></svg>'
 );
 
 const $ = (selector) => document.querySelector(selector);

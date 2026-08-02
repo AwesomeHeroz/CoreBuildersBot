@@ -3,200 +3,263 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Core Builders player marketplace">
+  <meta name="description" content="Core Builders player marketplace for Minecraft resources, kits, materials and services.">
+  <meta name="theme-color" content="#131313">
   <title>Core Builders Marketplace</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="/jquery-3.7.1.min.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="#marketplace" aria-label="Core Builders Marketplace home">
-      <span class="brand-mark">CB</span>
-      <span><strong>Core Builders</strong><small>Player Marketplace</small></span>
-    </a>
-    <nav class="nav" aria-label="Primary navigation">
-      <button class="nav-link active" data-section="marketplace">Marketplace</button>
-      <button class="nav-link" data-section="shop">My Shop</button>
-      <button class="nav-link" data-section="cart">Cart <span id="cart-count" class="badge">0</span></button>
-      <button class="nav-link" data-section="orders">Orders</button>
-      <button class="nav-link" data-section="sales">Sales</button>
-    </nav>
-    <div id="auth-area" class="auth-area">
-      <button class="button primary" type="button" disabled>Loading…</button>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="#marketplace" aria-label="Core Builders Marketplace home">
+        <img src="/core-builders-logo.webp" alt="" class="brand-logo">
+        <span class="brand-copy"><strong>Core Builders</strong><small>Player Marketplace</small></span>
+      </a>
+
+      <nav class="nav" aria-label="Primary navigation">
+        <button class="nav-link active" data-section="marketplace">Marketplace</button>
+        <button class="nav-link" data-section="shop">My Shop</button>
+        <button class="nav-link" data-section="cart">Cart <span id="cart-count" class="badge">0</span></button>
+        <button class="nav-link" data-section="orders">Orders</button>
+        <button class="nav-link" data-section="sales">Sales</button>
+      </nav>
+
+      <div id="auth-area" class="auth-area">
+        <button class="button primary" type="button" disabled>Loading…</button>
+      </div>
     </div>
   </header>
 
-  <main class="page-shell">
+  <div class="market-ticker" aria-label="Core Builders network information">
+    <div class="ticker-title">Core Network</div>
+    <div class="ticker-track">
+      <span><b class="ticker-tag purple">Build</b> Large creative projects with trusted members</span>
+      <span><b class="ticker-tag green">Trade</b> Player-run shops with coin checkout</span>
+      <span><b class="ticker-tag pink">Servers</b> 2b2t · 6b6t · ExtremeCraft</span>
+      <span><b class="ticker-tag blue">Creative</b> play.corebuilders.gg</span>
+    </div>
+  </div>
+
+  <main>
     <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 
     <section id="marketplace" class="view active" aria-labelledby="marketplace-title">
-      <div class="hero">
-        <div>
-          <p class="eyebrow">Member-to-member trading</p>
-          <h1 id="marketplace-title">Find what your next project needs.</h1>
-          <p>Search player shops, compare coin prices, and check out securely from one cart.</p>
+      <section class="hero-section">
+        <div class="hero-overlay"></div>
+        <div class="hero-content page-width">
+          <p class="hero-kicker">The official Core Builders economy</p>
+          <h1 id="marketplace-title">Build bigger. <span>Trade smarter.</span></h1>
+          <p class="hero-text">Find materials, kits, rare items and player services from trusted community shops. Every purchase uses Core Builders coins.</p>
+          <div class="hero-actions">
+            <a class="button primary large" href="#marketplace-listings">Browse Listings</a>
+            <a class="button light large" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">Join Discord</a>
+          </div>
+          <div class="hero-stats" aria-label="Marketplace summary">
+            <div><strong id="result-count">0</strong><span>Active listings</span></div>
+            <div><strong>1</strong><span>Shop per player</span></div>
+            <div><strong>Coins</strong><span>Secure checkout</span></div>
+          </div>
         </div>
-        <div class="hero-stat"><span id="result-count">0</span><small>active listings</small></div>
-      </div>
+      </section>
 
-      <form id="search-form" class="filter-bar">
-        <label class="search-field">
-          <span class="sr-only">Search items</span>
-          <input id="search-query" type="search" maxlength="100" placeholder="Search item names and descriptions">
-        </label>
-        <label>
-          <span class="sr-only">Category</span>
-          <select id="category-filter"><option value="">All categories</option></select>
-        </label>
-        <label>
-          <span class="sr-only">Sort</span>
-          <select id="sort-filter">
-            <option value="newest">Newest</option>
-            <option value="price">Price</option>
-            <option value="name">Name</option>
-            <option value="stock">Stock</option>
-          </select>
-        </label>
-        <label>
-          <span class="sr-only">Direction</span>
-          <select id="direction-filter">
-            <option value="desc">Descending</option>
-            <option value="asc">Ascending</option>
-          </select>
-        </label>
-        <button class="button primary" type="submit">Search</button>
-      </form>
+      <section id="marketplace-listings" class="listing-section">
+        <div class="page-width">
+          <div class="section-title">
+            <span class="category-label hot">Live</span>
+            <h2>Marketplace Listings</h2>
+            <p>Search the latest community offers and buy directly from another Core Builders member.</p>
+          </div>
 
-      <div id="item-grid" class="item-grid" aria-live="polite"></div>
-      <div class="pagination">
-        <button id="previous-page" class="button ghost" type="button">Previous</button>
-        <span id="page-label">Page 1</span>
-        <button id="next-page" class="button ghost" type="button">Next</button>
-      </div>
-    </section>
-
-    <section id="shop" class="view" aria-labelledby="shop-title">
-      <div class="section-heading">
-        <div><p class="eyebrow">One shop per player</p><h1 id="shop-title">My Shop</h1></div>
-      </div>
-      <div id="shop-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to manage your shop.</div>
-      <div id="shop-dashboard" class="hidden">
-        <div class="dashboard-grid">
-          <form id="shop-form" class="panel form-panel">
-            <div class="panel-heading"><h2>Shop profile</h2><span id="shop-status" class="status-chip">Not created</span></div>
-            <label>Shop name<input id="shop-name" required minlength="3" maxlength="120"></label>
-            <label>Description<textarea id="shop-description" required minlength="3" maxlength="1000" rows="5"></textarea></label>
-            <button id="save-shop" class="button primary" type="submit">Create shop</button>
-          </form>
-
-          <form id="item-form" class="panel form-panel hidden">
-            <div class="panel-heading"><h2 id="item-form-title">Add listing</h2><button id="cancel-edit" class="text-button hidden" type="button">Cancel edit</button></div>
-            <input id="editing-item-id" type="hidden">
-            <label>Item name<input id="item-name" required minlength="2" maxlength="150"></label>
-            <label>Description<textarea id="item-description" required minlength="2" maxlength="1000" rows="4"></textarea></label>
-            <label>Listing image
-              <input id="item-image-file" type="file" accept="image/png,image/jpeg,image/gif">
-              <small class="field-help">PNG, JPEG, or GIF. The server-configured upload limit applies.</small>
+          <form id="search-form" class="filter-bar">
+            <label class="search-field">
+              <span class="field-label">Search marketplace</span>
+              <input id="search-query" type="search" maxlength="100" placeholder="Item name, service, shop or description">
             </label>
-            <input id="item-image" type="hidden">
-            <div id="item-image-preview" class="upload-preview hidden">
-              <img id="item-image-preview-img" alt="Listing image preview">
-              <div>
-                <strong>Image ready</strong>
-                <small id="item-image-upload-status" class="muted">It will be uploaded when the listing is saved.</small>
-                <button id="remove-item-image" class="text-button" type="button">Remove image</button>
-              </div>
-            </div>
-            <div class="form-row">
-              <label>Stock<input id="item-stock" type="number" min="0" max="1000000" value="1" required></label>
-              <label>Price<input id="item-price" type="number" min="1" max="1000000000" value="1" required></label>
-            </div>
-            <label>Category<input id="item-category" list="category-options" required minlength="2" maxlength="64"></label>
-            <datalist id="category-options"></datalist>
-            <label class="checkbox"><input id="item-active" type="checkbox" checked> Listing is active</label>
-            <button class="button primary" type="submit">Save listing</button>
+            <label>
+              <span class="field-label">Category</span>
+              <select id="category-filter"><option value="">All categories</option></select>
+            </label>
+            <label>
+              <span class="field-label">Sort by</span>
+              <select id="sort-filter">
+                <option value="newest">Newest</option>
+                <option value="price">Price</option>
+                <option value="name">Name</option>
+                <option value="stock">Stock</option>
+              </select>
+            </label>
+            <label>
+              <span class="field-label">Direction</span>
+              <select id="direction-filter">
+                <option value="desc">Descending</option>
+                <option value="asc">Ascending</option>
+              </select>
+            </label>
+            <button class="button primary search-button" type="submit">Search Listings</button>
           </form>
+
+          <div id="item-grid" class="item-grid" aria-live="polite"></div>
+          <div class="pagination">
+            <button id="previous-page" class="button dark" type="button">Previous</button>
+            <span id="page-label">Page 1</span>
+            <button id="next-page" class="button dark" type="button">Next</button>
+          </div>
         </div>
-        <div class="panel listings-panel">
-          <div class="panel-heading"><h2>Your listings</h2><span id="my-listing-count" class="muted"></span></div>
-          <div id="my-items" class="management-list"></div>
+      </section>
+
+      <section class="market-info-section">
+        <div class="page-width info-grid">
+          <article class="info-card">
+            <span class="category-label purple">Community</span>
+            <h3>Trusted player shops</h3>
+            <p>Each member manages one shop, keeping ownership and seller identity clear.</p>
+          </article>
+          <article class="info-card">
+            <span class="category-label green">Checkout</span>
+            <h3>Coin-based purchases</h3>
+            <p>Review stock, quantity and total cost before placing your marketplace order.</p>
+          </article>
+          <article class="info-card">
+            <span class="category-label blue">Delivery</span>
+            <h3>Order tracking</h3>
+            <p>Buyers and sellers can follow delivery status and confirm completed trades.</p>
+          </article>
+        </div>
+      </section>
+    </section>
+
+    <section id="shop" class="view inner-view" aria-labelledby="shop-title">
+      <div class="inner-hero">
+        <div class="page-width section-heading">
+          <div><p class="eyebrow">One shop per player</p><h1 id="shop-title">My Shop</h1><p>Set up your storefront and manage active marketplace listings.</p></div>
+          <span class="section-number">01</span>
+        </div>
+      </div>
+      <div class="page-width content-area">
+        <div id="shop-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to manage your shop.</div>
+        <div id="shop-dashboard" class="hidden">
+          <div class="dashboard-grid">
+            <form id="shop-form" class="panel form-panel">
+              <div class="panel-ribbon">Storefront</div>
+              <div class="panel-heading"><h2>Shop profile</h2><span id="shop-status" class="status-chip">Not created</span></div>
+              <label>Shop name<input id="shop-name" required minlength="3" maxlength="120"></label>
+              <label>Description<textarea id="shop-description" required minlength="3" maxlength="1000" rows="5"></textarea></label>
+              <button id="save-shop" class="button primary" type="submit">Create shop</button>
+            </form>
+
+            <form id="item-form" class="panel form-panel hidden">
+              <div class="panel-ribbon purple">Listing</div>
+              <div class="panel-heading"><h2 id="item-form-title">Add listing</h2><button id="cancel-edit" class="text-button hidden" type="button">Cancel edit</button></div>
+              <input id="editing-item-id" type="hidden">
+              <label>Item name<input id="item-name" required minlength="2" maxlength="150"></label>
+              <label>Description<textarea id="item-description" required minlength="2" maxlength="1000" rows="4"></textarea></label>
+              <label>Listing image
+                <input id="item-image-file" type="file" accept="image/png,image/jpeg,image/gif">
+                <small class="field-help">PNG, JPEG, or GIF. The server-configured upload limit applies.</small>
+              </label>
+              <input id="item-image" type="hidden">
+              <div id="item-image-preview" class="upload-preview hidden">
+                <img id="item-image-preview-img" alt="Listing image preview">
+                <div>
+                  <strong>Image ready</strong>
+                  <small id="item-image-upload-status" class="muted">It will be uploaded when the listing is saved.</small>
+                  <button id="remove-item-image" class="text-button" type="button">Remove image</button>
+                </div>
+              </div>
+              <div class="form-row">
+                <label>Stock<input id="item-stock" type="number" min="0" max="1000000" value="1" required></label>
+                <label>Price<input id="item-price" type="number" min="1" max="1000000000" value="1" required></label>
+              </div>
+              <label>Category<input id="item-category" list="category-options" required minlength="2" maxlength="64"></label>
+              <datalist id="category-options"></datalist>
+              <label class="checkbox"><input id="item-active" type="checkbox" checked> Listing is active</label>
+              <button class="button primary" type="submit">Save listing</button>
+            </form>
+          </div>
+          <div class="panel listings-panel">
+            <div class="panel-ribbon green">Inventory</div>
+            <div class="panel-heading"><h2>Your listings</h2><span id="my-listing-count" class="muted"></span></div>
+            <div id="my-items" class="management-list"></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="cart" class="view" aria-labelledby="cart-title">
-      <div class="section-heading"><div><p class="eyebrow">Review before purchase</p><h1 id="cart-title">Your Cart</h1></div></div>
-      <div id="cart-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to use your cart.</div>
-      <div id="cart-panel" class="panel hidden">
-        <div id="cart-items" class="cart-list"></div>
-        <div class="cart-summary">
-          <div><small>Total</small><strong id="cart-total">0 coins</strong></div>
-          <button id="checkout-button" class="button primary" type="button">Checkout</button>
+    <section id="cart" class="view inner-view" aria-labelledby="cart-title">
+      <div class="inner-hero">
+        <div class="page-width section-heading">
+          <div><p class="eyebrow">Review before purchase</p><h1 id="cart-title">Your Cart</h1><p>Check quantity, seller and total cost before checkout.</p></div>
+          <span class="section-number">02</span>
+        </div>
+      </div>
+      <div class="page-width content-area">
+        <div id="cart-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to use your cart.</div>
+        <div id="cart-panel" class="panel hidden">
+          <div class="panel-ribbon">Checkout</div>
+          <div id="cart-items" class="cart-list"></div>
+          <div class="cart-summary">
+            <div><small>Total</small><strong id="cart-total">0 coins</strong></div>
+            <button id="checkout-button" class="button primary" type="button">Checkout</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="orders" class="view" aria-labelledby="orders-title">
-      <div class="section-heading"><div><p class="eyebrow">Purchase history</p><h1 id="orders-title">Your Orders</h1></div></div>
-      <div id="orders-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to view purchases.</div>
-      <div id="orders-list" class="stack hidden"></div>
+    <section id="orders" class="view inner-view" aria-labelledby="orders-title">
+      <div class="inner-hero">
+        <div class="page-width section-heading">
+          <div><p class="eyebrow">Purchase history</p><h1 id="orders-title">Your Orders</h1><p>Track delivery progress, confirmations and completed purchases.</p></div>
+          <span class="section-number">03</span>
+        </div>
+      </div>
+      <div class="page-width content-area">
+        <div id="orders-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to view purchases.</div>
+        <div id="orders-list" class="stack hidden"></div>
+      </div>
     </section>
 
-    <section id="sales" class="view" aria-labelledby="sales-title">
-      <div class="section-heading"><div><p class="eyebrow">Fulfil customer orders</p><h1 id="sales-title">Your Sales</h1></div></div>
-      <div id="sales-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to view sales.</div>
-      <div id="sales-list" class="stack hidden"></div>
+    <section id="sales" class="view inner-view" aria-labelledby="sales-title">
+      <div class="inner-hero">
+        <div class="page-width section-heading">
+          <div><p class="eyebrow">Fulfil customer orders</p><h1 id="sales-title">Your Sales</h1><p>Review incoming purchases and complete delivery confirmations.</p></div>
+          <span class="section-number">04</span>
+        </div>
+      </div>
+      <div class="page-width content-area">
+        <div id="sales-guest" class="empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to view sales.</div>
+        <div id="sales-list" class="stack hidden"></div>
+      </div>
     </section>
   </main>
 
-
-
   <div id="register-modal" class="modal-overlay hidden" aria-hidden="true">
-    <section class="modal-panel register-panel" role="dialog" aria-modal="true"
-             aria-labelledby="register-title" aria-describedby="register-description">
+    <section class="modal-panel register-panel" role="dialog" aria-modal="true" aria-labelledby="register-title" aria-describedby="register-description">
+      <div class="panel-ribbon">Registration</div>
       <button id="register-close" class="modal-close" type="button" aria-label="Close registration dialog">×</button>
       <p class="eyebrow">Become a Core Builders member</p>
       <h2 id="register-title">Register through Discord</h2>
       <p id="register-description" class="muted">Registration starts in the official Core Builders Discord server.</p>
       <ol class="registration-steps">
-        <li>
-          <span class="registration-step-number">1</span>
-          <div>
-            <strong>Join the Discord server</strong>
-            <p>Use the invite <a class="inline-link" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">discord.gg/corebuilders</a>.</p>
-          </div>
-        </li>
-        <li>
-          <span class="registration-step-number">2</span>
-          <div>
-            <strong>Submit your application</strong>
-            <p>Open the <code>#apply</code> channel and complete the application process.</p>
-          </div>
-        </li>
+        <li><span class="registration-step-number">1</span><div><strong>Join the Discord server</strong><p>Use the invite <a class="inline-link" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">discord.gg/corebuilders</a>.</p></div></li>
+        <li><span class="registration-step-number">2</span><div><strong>Submit your application</strong><p>Open the <code>#apply</code> channel and complete the application process.</p></div></li>
       </ol>
       <div class="modal-actions">
-        <button id="register-cancel" class="button ghost" type="button">Close</button>
-        <a id="register-discord-link" class="button discord" href="https://discord.gg/corebuilders"
-           target="_blank" rel="noopener noreferrer">Join Discord</a>
+        <button id="register-cancel" class="button dark" type="button">Close</button>
+        <a id="register-discord-link" class="button discord" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">Join Discord</a>
       </div>
     </section>
   </div>
 
   <div id="minecraft-login-modal" class="modal-overlay hidden" aria-hidden="true">
-    <section class="modal-panel minecraft-login-panel" role="dialog" aria-modal="true"
-             aria-labelledby="minecraft-login-title" aria-describedby="minecraft-login-status">
+    <section class="modal-panel minecraft-login-panel" role="dialog" aria-modal="true" aria-labelledby="minecraft-login-title" aria-describedby="minecraft-login-status">
+      <div class="panel-ribbon purple">Account Verification</div>
       <button id="minecraft-login-close" class="modal-close" type="button" aria-label="Close login dialog">×</button>
       <h2 id="minecraft-login-title">Verify login in Minecraft</h2>
       <p id="minecraft-login-status" class="muted" aria-live="polite">Creating a one-time login code…</p>
-      <div id="discord-login-guidance" class="login-guidance hidden">
-        <strong>Not part of Core Builders yet?</strong>
-        <p>Join <a class="inline-link" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">discord.gg/corebuilders</a>, then apply in the <code>#apply</code> channel before logging in.</p>
-      </div>
-      <div id="minecraft-login-guidance" class="login-guidance server-guidance hidden">
-        <span class="muted">Creative server IP</span>
-        <code class="server-address">play.corebuilders.gg</code>
-      </div>
+      <div id="discord-login-guidance" class="login-guidance hidden"><strong>Not part of Core Builders yet?</strong><p>Join <a class="inline-link" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">discord.gg/corebuilders</a>, then apply in the <code>#apply</code> channel before logging in.</p></div>
+      <div id="minecraft-login-guidance" class="login-guidance server-guidance hidden"><span class="muted">Creative server IP</span><code class="server-address">play.corebuilders.gg</code></div>
       <div id="minecraft-login-challenge" class="minecraft-login-challenge">
         <div id="minecraft-login-code" class="minecraft-login-code">--------</div>
         <code id="minecraft-login-command" class="minecraft-login-command"></code>
@@ -208,15 +271,15 @@
         <p>Continue only if this is the account you intended to use.</p>
       </div>
       <div class="modal-actions">
-        <button id="minecraft-login-cancel" class="button ghost" type="button">Cancel</button>
+        <button id="minecraft-login-cancel" class="button dark" type="button">Cancel</button>
         <button id="minecraft-login-confirm" class="button primary hidden" type="button">Continue</button>
       </div>
     </section>
   </div>
 
   <div id="action-modal" class="modal-overlay hidden" aria-hidden="true">
-    <section class="modal-panel" role="dialog" aria-modal="true"
-             aria-labelledby="action-modal-title" aria-describedby="action-modal-message">
+    <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="action-modal-title" aria-describedby="action-modal-message">
+      <div class="panel-ribbon">Marketplace Action</div>
       <button id="action-modal-close" class="modal-close" type="button" aria-label="Close dialog">×</button>
       <h2 id="action-modal-title"></h2>
       <p id="action-modal-message"></p>
@@ -227,12 +290,24 @@
       </label>
       <p id="action-modal-error" class="modal-error hidden" role="alert"></p>
       <div class="modal-actions">
-        <button id="action-modal-cancel" class="button ghost" type="button">Cancel</button>
+        <button id="action-modal-cancel" class="button dark" type="button">Cancel</button>
         <button id="action-modal-confirm" class="button primary" type="button">Continue</button>
       </div>
     </section>
   </div>
 
-  <footer>Core Builders marketplace · Purchases use coins</footer>
+  <footer class="site-footer">
+    <div class="footer-top">
+      <div class="page-width footer-grid">
+        <div class="footer-brand">
+          <img src="/core-builders-logo.webp" alt="Core Builders">
+          <div><h2>Core Builders</h2><p>Build together. Trade fairly. Improve the servers we play on.</p></div>
+        </div>
+        <div class="footer-block"><span class="category-label hot">Discord</span><h3>Join the community</h3><a href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">discord.gg/corebuilders</a></div>
+        <div class="footer-block"><span class="category-label purple">Creative</span><h3>Build with us</h3><code>play.corebuilders.gg</code></div>
+      </div>
+    </div>
+    <div class="footer-bottom"><div class="page-width"><span>Core Builders Marketplace</span><span>Purchases use coins</span></div></div>
+  </footer>
 </body>
 </html>
