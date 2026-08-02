@@ -47,12 +47,6 @@ public final class MarketplaceAuthorizer implements MarketplaceAccessPolicy {
         if (row == null || !Boolean.TRUE.equals(row.get(MEMBERS.active))) {
             throw forbidden("Your Core Builders profile is inactive or missing.");
         }
-        if (blank(row.get(MEMBERS.discordUserId))) {
-            throw forbidden("Link Discord before using marketplace account features.");
-        }
-        if (blank(row.get(MEMBERS.minecraftUuid))) {
-            throw forbidden("A verified Minecraft account is required.");
-        }
         if (Boolean.TRUE.equals(row.get(MEMBERS.minecraftLoginProvisional))) {
             throw forbidden("Your marketplace membership is awaiting staff approval.");
         }
