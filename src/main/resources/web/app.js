@@ -542,7 +542,9 @@ function startDiscordBotLogin() {
 
 function renderAuth(balance) {
   const area = $('#auth-area');
+  const accountLabel = $('#account-menu-label');
   area.replaceChildren();
+  if (accountLabel) accountLabel.textContent = state.me?.username || 'Account';
   if (!state.me) {
     const register = element('button', 'btn-small btn-flat waves-effect', 'Register');
     register.type = 'button';
@@ -1052,6 +1054,17 @@ function showSection(name) {
 
 function bindEvents() {
   $$('.nav-link').forEach((button) => button.addEventListener('click', () => showSection(button.dataset.section)));
+
+  const accountMenu = $('#account-menu');
+  document.addEventListener('click', (event) => {
+    if (accountMenu?.open && !accountMenu.contains(event.target)) accountMenu.removeAttribute('open');
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && accountMenu?.open) {
+      accountMenu.removeAttribute('open');
+      accountMenu.querySelector('summary')?.focus();
+    }
+  });
   $('#search-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     state.page = 1;

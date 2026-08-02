@@ -21,10 +21,6 @@
           <span class="brand-copy"><strong>Core Builders</strong><small>Marketplace</small></span>
         </a>
 
-        <button class="sidenav-trigger mobile-menu-button" type="button" data-target="mobile-navigation" aria-label="Open navigation">
-          <span class="menu-icon" aria-hidden="true">☰</span>
-        </button>
-
         <ul class="right hide-on-med-and-down desktop-navigation">
           <li><button class="nav-link active" data-section="marketplace" type="button">Marketplace</button></li>
           <li><button class="nav-link" data-section="shop" type="button">My Shop</button></li>
@@ -32,6 +28,34 @@
           <li><button class="nav-link" data-section="orders" type="button">Orders</button></li>
           <li><button class="nav-link" data-section="sales" type="button">Sales</button></li>
         </ul>
+
+        <div class="nav-account-zone">
+          <button id="theme-toggle" class="btn-flat waves-effect theme-toggle nav-theme-toggle" type="button" aria-label="Switch to light theme" aria-pressed="false" title="Switch to light theme">
+            <span id="theme-toggle-icon" class="theme-toggle-icon" aria-hidden="true">☀</span>
+            <span id="theme-toggle-label">Light</span>
+          </button>
+
+          <details id="account-menu" class="account-menu">
+            <summary class="account-menu-trigger" aria-label="Open account menu">
+              <span class="account-menu-avatar" aria-hidden="true">CB</span>
+              <span id="account-menu-label">Account</span>
+              <span class="account-menu-chevron" aria-hidden="true"></span>
+            </summary>
+            <div class="account-menu-panel z-depth-4">
+              <div class="account-menu-heading">
+                <strong>Core Builders account</strong>
+                <small>2b2t · 6b6t · ExtremeCraft</small>
+              </div>
+              <div id="auth-area" class="auth-area nav-auth-area">
+                <button class="btn disabled" type="button" disabled>Loading…</button>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <button class="sidenav-trigger mobile-menu-button" type="button" data-target="mobile-navigation" aria-label="Open navigation">
+          <span class="menu-icon" aria-hidden="true">☰</span>
+        </button>
       </div>
     </nav>
 
@@ -47,63 +71,32 @@
       <li><button class="nav-link sidenav-close" data-section="orders" type="button">Orders</button></li>
       <li><button class="nav-link sidenav-close" data-section="sales" type="button">Sales</button></li>
     </ul>
-
-    <div class="account-bar z-depth-1">
-      <div class="container account-bar-inner">
-        <span class="account-label"><strong>Core Builders Network</strong><small>2b2t · 6b6t · ExtremeCraft</small></span>
-        <div class="account-controls">
-          <button id="theme-toggle" class="btn-flat waves-effect theme-toggle" type="button" aria-label="Switch to light theme" aria-pressed="false" title="Switch to light theme">
-            <span id="theme-toggle-icon" class="theme-toggle-icon" aria-hidden="true">☀</span>
-            <span id="theme-toggle-label">Light theme</span>
-          </button>
-          <div id="auth-area" class="auth-area">
-            <button class="btn disabled" type="button" disabled>Loading…</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </header>
 
   <main>
     <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
 
     <section id="marketplace" class="view active" aria-labelledby="marketplace-title">
-      <div class="page-header gaming-hero">
-        <div class="container page-header-content">
-          <div>
-            <div class="hero-badge"><span></span> Core Builders member marketplace</div>
-            <p class="overline">Build · Trade · Collaborate</p>
-            <h1 id="marketplace-title">Gear up for your<br><span>next big build.</span></h1>
-            <p class="flow-text page-intro">Browse trusted player shops for materials, kits, rare items, and build services—all powered by Core Builders coins.</p>
-            <div class="page-actions">
-              <a class="btn waves-effect waves-light primary-action" href="#marketplace-listings">Browse listings</a>
-              <a class="btn-flat waves-effect secondary-action" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">Join Discord</a>
-            </div>
-            <div class="hero-trust" aria-label="Marketplace benefits">
-              <span>Verified community</span>
-              <span>Protected coin checkout</span>
-              <span>Tracked fulfilment</span>
-            </div>
-          </div>
-          <aside class="summary-card card-panel" aria-label="Marketplace summary">
-            <div class="summary-icon" aria-hidden="true">CB</div>
-            <span class="summary-value" id="result-count">0</span>
-            <span class="summary-label">Active listings</span>
-            <div class="divider"></div>
-            <div class="summary-detail"><strong>Built for the network</strong><small>Trade across Core Builders projects</small></div>
-            <div class="summary-detail"><strong>Member-owned shops</strong><small>Clear sellers and accountable delivery</small></div>
-          </aside>
-        </div>
-      </div>
-
       <section id="marketplace-listings" class="section marketplace-section">
         <div class="container">
-          <div class="section-heading-simple">
+          <div class="content-page-heading marketplace-heading">
             <div>
-              <h2>Marketplace</h2>
+              <p class="overline">Build · Trade · Collaborate</p>
+              <h1 id="marketplace-title">Marketplace</h1>
+              <p>Browse trusted player shops for materials, kits, rare items, and build services.</p>
+            </div>
+            <div class="content-page-actions">
+              <span class="listing-count-pill"><strong id="result-count">0</strong> active listings</span>
+              <a class="btn-flat waves-effect secondary-action" href="https://discord.gg/corebuilders" target="_blank" rel="noopener noreferrer">Join Discord</a>
+            </div>
+          </div>
+
+          <div class="section-heading-simple marketplace-list-heading">
+            <div>
+              <h2>Browse listings</h2>
               <p class="grey-text text-darken-1">Search and sort the latest player offers.</p>
             </div>
-            <span class="chip">Live listings</span>
+            <span class="chip">Live marketplace</span>
           </div>
 
           <form id="search-form" class="card-panel filter-panel">
@@ -183,14 +176,14 @@
     </section>
 
     <section id="shop" class="view" aria-labelledby="shop-title">
-      <div class="section-page-header gaming-page-header">
-        <div class="container">
-          <p class="overline">Seller tools</p>
-          <h1 id="shop-title">My Shop</h1>
-          <p>Set up your storefront and manage marketplace listings.</p>
-        </div>
-      </div>
       <div class="container section content-section">
+        <div class="content-page-heading">
+          <div>
+            <p class="overline">Seller tools</p>
+            <h1 id="shop-title">My Shop</h1>
+            <p>Set up your storefront and manage marketplace listings.</p>
+          </div>
+        </div>
         <div id="shop-guest" class="card-panel empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to manage your shop.</div>
         <div id="shop-dashboard" class="hidden">
           <div class="row">
@@ -294,14 +287,14 @@
     </section>
 
     <section id="cart" class="view" aria-labelledby="cart-title">
-      <div class="section-page-header gaming-page-header">
-        <div class="container">
-          <p class="overline">Checkout</p>
-          <h1 id="cart-title">Your Cart</h1>
-          <p>Review quantity, seller, and total cost before placing an order.</p>
-        </div>
-      </div>
       <div class="container section content-section">
+        <div class="content-page-heading">
+          <div>
+            <p class="overline">Checkout</p>
+            <h1 id="cart-title">Your Cart</h1>
+            <p>Review quantity, seller, and total cost before placing an order.</p>
+          </div>
+        </div>
         <div id="cart-guest" class="card-panel empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to use your cart.</div>
         <div id="cart-panel" class="card hidden">
           <div class="card-content">
@@ -317,28 +310,28 @@
     </section>
 
     <section id="orders" class="view" aria-labelledby="orders-title">
-      <div class="section-page-header gaming-page-header">
-        <div class="container">
-          <p class="overline">Purchases</p>
-          <h1 id="orders-title">Your Orders</h1>
-          <p>Track delivery progress, confirmations, and completed purchases.</p>
-        </div>
-      </div>
       <div class="container section content-section">
+        <div class="content-page-heading">
+          <div>
+            <p class="overline">Purchases</p>
+            <h1 id="orders-title">Your Orders</h1>
+            <p>Track delivery progress, confirmations, and completed purchases.</p>
+          </div>
+        </div>
         <div id="orders-guest" class="card-panel empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to view purchases.</div>
         <div id="orders-list" class="stack hidden"></div>
       </div>
     </section>
 
     <section id="sales" class="view" aria-labelledby="sales-title">
-      <div class="section-page-header gaming-page-header">
-        <div class="container">
-          <p class="overline">Seller orders</p>
-          <h1 id="sales-title">Your Sales</h1>
-          <p>Review incoming purchases and complete delivery confirmations.</p>
-        </div>
-      </div>
       <div class="container section content-section">
+        <div class="content-page-heading">
+          <div>
+            <p class="overline">Seller orders</p>
+            <h1 id="sales-title">Your Sales</h1>
+            <p>Review incoming purchases and complete delivery confirmations.</p>
+          </div>
+        </div>
         <div id="sales-guest" class="card-panel empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to view sales.</div>
         <div id="sales-list" class="stack hidden"></div>
       </div>
