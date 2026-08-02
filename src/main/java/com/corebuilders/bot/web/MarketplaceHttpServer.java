@@ -658,9 +658,8 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         String resource = switch (path) {
             case "/", "/index.html" -> "/web/index.html";
             case "/app.js" -> "/web/app.js";
-            case "/materialize.min.js" -> "/web/materialize.min.js";
-            case "/materialize.min.css" -> "/web/materialize.min.css";
             case "/styles.css" -> "/web/styles.css";
+            case "/core-builders-logo.webp" -> "/web/core-builders-logo.webp";
             default -> "/web/index.html";
         };
         byte[] bytes;
@@ -888,13 +887,20 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         StringBuilder images = new StringBuilder("'self' data: https://cdn.discordapp.com https://media.discordapp.net");
         for (String host : config.allowedImageHosts()) images.append(" https://").append(host).append(" https://*.").append(host);
         headers.set("Content-Security-Policy",
-                "default-src 'self'; img-src " + images + "; style-src 'self'; script-src 'self'; "
-                        + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://discord.com");
+                "default-src 'self'; img-src " + images + "; "
+                        + "style-src 'self' https://cdn.jsdelivr.net; "
+                        + "script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; "
+                        + "script-src-elem 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; "
+                        + "connect-src 'self' https://cloudflareinsights.com; "
+                        + "frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://discord.com");
     }
 
     private static String contentType(String resource) {
         if (resource.endsWith(".js")) return "text/javascript; charset=utf-8";
         if (resource.endsWith(".css")) return "text/css; charset=utf-8";
+        if (resource.endsWith(".webp")) return "image/webp";
+        if (resource.endsWith(".png")) return "image/png";
+        if (resource.endsWith(".svg")) return "image/svg+xml";
         return "text/html; charset=utf-8";
     }
 

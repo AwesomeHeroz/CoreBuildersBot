@@ -280,8 +280,14 @@ class MarketplaceHttpServerTest {
         Response index = request("GET", "/", null, null, null);
         assertEquals(200, index.status());
         assertTrue(index.headers().firstValue("Content-Type").orElseThrow().startsWith("text/html"));
-        assertTrue(index.headers().firstValue("Content-Security-Policy").isPresent());
+        String csp = index.headers().firstValue("Content-Security-Policy").orElseThrow();
+        assertTrue(csp.contains("https://cdn.jsdelivr.net"));
+        assertTrue(csp.contains("https://static.cloudflareinsights.com"));
+        assertTrue(csp.contains("https://cloudflareinsights.com"));
         assertEquals(200, request("GET", "/app.js", null, null, null).status());
+        Response logo = request("GET", "/core-builders-logo.webp", null, null, null);
+        assertEquals(200, logo.status());
+        assertEquals("image/webp", logo.headers().firstValue("Content-Type").orElseThrow());
         assertEquals(405, request("POST", "/styles.css", null, null, null).status());
         assertEquals(401, request("GET", "/api/cart", null, null, null).status());
         assertEquals(400, request("GET", "/api/items?sort=unknown", null, null, null).status());
