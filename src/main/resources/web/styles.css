@@ -4254,3 +4254,165 @@ html[data-theme="light"] .account-menu-trigger {
     display: none !important;
   }
 }
+
+
+/* UI polish fix: stacked filter labels, cleaner placeholders, refined buttons, simpler listing footer */
+.filter-panel .input-field {
+  margin-top: 1rem;
+}
+
+.filter-panel .input-field > label.stacked-label,
+.filter-panel .select-label.stacked-label {
+  position: static !important;
+  display: block;
+  margin: 0 0 8px;
+  transform: none !important;
+  color: #bcb2ca !important;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  pointer-events: auto;
+}
+
+.filter-panel .input-field input[type="search"],
+.filter-panel .input-field input[type="text"],
+.filter-panel .input-field input[type="number"] {
+  margin: 0;
+}
+
+.filter-panel .input-field input[type="search"] {
+  padding-right: 0;
+}
+
+.filter-panel .input-field input::placeholder,
+.filter-panel .input-field textarea::placeholder {
+  color: rgba(176, 166, 190, 0.72);
+}
+
+.filter-panel select.browser-default {
+  display: block;
+  width: 100%;
+  padding: 0 40px 0 14px;
+  background-image: linear-gradient(45deg, transparent 50%, #b994ff 50%), linear-gradient(135deg, #b994ff 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.filter-submit {
+  min-height: 83px;
+}
+
+.filter-submit .btn {
+  width: 100%;
+  min-height: 46px;
+  height: 46px;
+  border-radius: 12px;
+}
+
+.nav-auth-area .btn,
+.nav-auth-area .btn-small,
+.nav-auth-area a.btn-small {
+  min-height: 46px;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.nav-auth-area .btn-flat {
+  min-height: 44px;
+  border: 1px solid rgba(201, 159, 255, 0.28);
+  border-radius: 12px;
+  background: rgba(156, 77, 255, 0.10);
+  color: #eedcff;
+  font-weight: 800;
+}
+
+.nav-auth-area .btn-flat:hover,
+.nav-auth-area .btn-flat:focus {
+  border-color: rgba(214, 181, 255, 0.52);
+  background: rgba(156, 77, 255, 0.18);
+  color: #fff;
+}
+
+.item-footer {
+  align-items: center;
+}
+
+.price-block {
+  display: flex;
+  align-items: center;
+}
+
+.price-block small {
+  display: none;
+}
+
+.price {
+  display: inline-flex;
+  align-items: center;
+  color: #e1b8ff;
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.item-footer .btn-small {
+  min-width: 122px;
+  padding: 0 16px;
+  font-weight: 800;
+}
+
+.item-footer .btn-small:disabled {
+  border-color: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.52) !important;
+  opacity: 1;
+}
+
+html[data-theme="light"] .filter-panel .input-field > label.stacked-label,
+html[data-theme="light"] .filter-panel .select-label.stacked-label {
+  color: #6d6280 !important;
+}
+
+html[data-theme="light"] .filter-panel .input-field input::placeholder,
+html[data-theme="light"] .filter-panel .input-field textarea::placeholder {
+  color: rgba(109, 98, 128, 0.7);
+}
+
+html[data-theme="light"] .filter-panel select.browser-default {
+  background-image: linear-gradient(45deg, transparent 50%, #7a3fc0 50%), linear-gradient(135deg, #7a3fc0 50%, transparent 50%);
+}
+
+html[data-theme="light"] .nav-auth-area .btn-flat {
+  border-color: rgba(122, 63, 192, 0.22);
+  background: rgba(122, 63, 192, 0.08);
+  color: #64339f;
+}
+
+html[data-theme="light"] .nav-auth-area .btn-flat:hover,
+html[data-theme="light"] .nav-auth-area .btn-flat:focus {
+  border-color: rgba(122, 63, 192, 0.36);
+  background: rgba(122, 63, 192, 0.14);
+  color: #512780;
+}
+
+html[data-theme="light"] .price {
+  color: #7a3fc0;
+}
+
+html[data-theme="light"] .item-footer .btn-small:disabled {
+  border-color: rgba(82, 63, 112, 0.07);
+  background: rgba(82, 63, 112, 0.08) !important;
+  color: rgba(82, 63, 112, 0.55) !important;
+}
+
+@media (max-width: 992px) {
+  .filter-submit {
+    min-height: 0;
+  }
+}
