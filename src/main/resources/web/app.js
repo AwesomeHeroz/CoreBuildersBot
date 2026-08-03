@@ -667,6 +667,7 @@ function itemCard(item) {
   body.append(seller);
   const footer = element('div', 'item-footer');
   const priceBlock = element('div', 'price-block');
+  priceBlock.append(element('small', '', 'Price'));
   priceBlock.append(element('span', 'price', shortCoins(item.price)));
   footer.append(priceBlock);
   const add = element('button', 'btn-small waves-effect waves-light deep-purple', item.stock > 0 ? 'Add to cart' : 'Out of stock');
