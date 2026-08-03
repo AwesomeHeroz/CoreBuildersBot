@@ -4416,3 +4416,217 @@ html[data-theme="light"] .item-footer .btn-small:disabled {
     min-height: 0;
   }
 }
+
+
+/* Shop page UI fixes */
+#shop-dashboard .row {
+  margin-bottom: 18px;
+}
+
+.form-card .card-content {
+  display: grid;
+  gap: 18px;
+}
+
+.form-card .card-title-row {
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.form-card .card-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 16px 24px 22px;
+  border-top: 1px solid var(--border);
+  background: transparent;
+}
+
+.form-card .card-action .btn {
+  min-width: 148px;
+}
+
+.form-card .input-field {
+  margin: 0;
+}
+
+.form-card .input-field > label.stacked-label {
+  position: static !important;
+  display: block;
+  margin: 0 0 8px;
+  transform: none !important;
+  color: #bdb3cb !important;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  pointer-events: auto;
+}
+
+.form-card .input-field input[type="text"],
+.form-card .input-field input[type="number"],
+.form-card .input-field textarea.materialize-textarea,
+.form-card .file-field .file-path-wrapper input {
+  margin: 0;
+}
+
+.form-card .input-field textarea.materialize-textarea {
+  min-height: 102px;
+  padding-top: 8px;
+}
+
+.form-card .input-field .helper-text,
+.form-card .upload-helper {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.form-card .file-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.form-card .file-field .btn {
+  grid-column: 1;
+  margin: 0;
+}
+
+.form-card .file-field .file-path-wrapper {
+  grid-column: 2;
+}
+
+.form-card .upload-helper {
+  grid-column: 1 / -1;
+}
+
+.compact-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+}
+
+.compact-row > .input-field.col {
+  width: 100%;
+  margin-left: 0;
+  left: auto;
+}
+
+.checkbox-row {
+  margin: 2px 0 0;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.checkbox-label span {
+  font-weight: 700;
+}
+
+.upload-preview {
+  align-items: flex-start;
+}
+
+.upload-preview > div {
+  min-width: 0;
+}
+
+.upload-preview strong {
+  color: #fff;
+}
+
+#item-image-upload-status {
+  line-height: 1.35;
+}
+
+#shop-dashboard > .card {
+  margin-top: 8px;
+}
+
+.management-list {
+  gap: 12px;
+}
+
+.management-item {
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 18px;
+  padding: 14px 16px;
+}
+
+.management-item .status-chip {
+  margin-top: 8px;
+}
+
+.management-item p {
+  line-height: 1.45;
+}
+
+.management-actions {
+  gap: 8px;
+}
+
+.management-actions .btn-small,
+.management-actions .btn-flat {
+  min-width: 92px;
+  justify-content: center;
+}
+
+html[data-theme="light"] .form-card .input-field > label.stacked-label {
+  color: #6d6280 !important;
+}
+
+@media (max-width: 992px) {
+  .form-card .card-action {
+    padding: 16px 20px 20px;
+  }
+
+  .management-item {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .management-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    padding-top: 4px;
+  }
+}
+
+@media (max-width: 600px) {
+  .form-card .file-field {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .form-card .file-field .btn,
+  .form-card .file-field .file-path-wrapper,
+  .form-card .upload-helper {
+    grid-column: 1;
+  }
+
+  .compact-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .form-card .card-action .btn {
+    width: 100%;
+  }
+
+  .management-item {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .management-item > img {
+    width: 56px;
+    height: 56px;
+  }
+}

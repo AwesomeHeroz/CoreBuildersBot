@@ -199,10 +199,11 @@
                   <div class="input-field">
                     <input id="shop-name" type="text" required minlength="3" maxlength="120">
                     <label for="shop-name">Shop name</label>
+                    <label class="stacked-label" for="shop-name">Shop name</label>
                   </div>
                   <div class="input-field">
                     <textarea id="shop-description" class="materialize-textarea" required minlength="3" maxlength="1000"></textarea>
-                    <label for="shop-description">Description</label>
+                    <label class="stacked-label" for="shop-description">Description</label>
                   </div>
                 </div>
                 <div class="card-action">
@@ -221,11 +222,11 @@
                   <input id="editing-item-id" type="hidden">
                   <div class="input-field">
                     <input id="item-name" type="text" required minlength="2" maxlength="150">
-                    <label for="item-name">Item name</label>
+                    <label class="stacked-label" for="item-name">Item name</label>
                   </div>
                   <div class="input-field">
                     <textarea id="item-description" class="materialize-textarea" required minlength="2" maxlength="1000"></textarea>
-                    <label for="item-description">Description</label>
+                    <label class="stacked-label" for="item-description">Description</label>
                   </div>
                   <div class="file-field input-field">
                     <div class="btn deep-purple">
@@ -235,7 +236,7 @@
                     <div class="file-path-wrapper">
                       <input class="file-path validate" type="text" placeholder="PNG, JPEG, or GIF">
                     </div>
-                    <span class="helper-text">The server-configured upload limit applies.</span>
+                    <span class="helper-text upload-helper">The server-configured upload limit applies.</span>
                   </div>
                   <input id="item-image" type="hidden">
                   <div id="item-image-preview" class="upload-preview card-panel hidden">
@@ -249,20 +250,20 @@
                   <div class="row compact-row">
                     <div class="input-field col s6">
                       <input id="item-stock" type="number" min="0" max="1000000" value="1" required>
-                      <label class="active" for="item-stock">Stock</label>
+                      <label class="stacked-label" for="item-stock">Stock</label>
                     </div>
                     <div class="input-field col s6">
                       <input id="item-price" type="number" min="1" max="1000000000" value="1" required>
-                      <label class="active" for="item-price">Price</label>
+                      <label class="stacked-label" for="item-price">Price</label>
                     </div>
                   </div>
                   <div class="input-field">
                     <input id="item-category" type="text" list="category-options" required minlength="2" maxlength="64">
-                    <label for="item-category">Category</label>
+                    <label class="stacked-label" for="item-category">Category</label>
                     <datalist id="category-options"></datalist>
                   </div>
-                  <p>
-                    <label>
+                  <p class="checkbox-row">
+                    <label class="checkbox-label">
                       <input id="item-active" type="checkbox" checked>
                       <span>Listing is active</span>
                     </label>
