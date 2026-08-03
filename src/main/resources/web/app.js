@@ -1056,13 +1056,33 @@ function bindEvents() {
   $$('.nav-link').forEach((button) => button.addEventListener('click', () => showSection(button.dataset.section)));
 
   const accountMenu = $('#account-menu');
+  const accountMenuTrigger = $('#account-menu-trigger');
+  const accountMenuPanel = $('#account-menu-panel');
+
+  const closeAccountMenu = () => {
+    if (!accountMenuPanel || !accountMenuTrigger) return;
+    accountMenuPanel.hidden = true;
+    accountMenu.classList.remove('open');
+    accountMenuTrigger.setAttribute('aria-expanded', 'false');
+  };
+
+  accountMenuTrigger?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const opening = accountMenuPanel?.hidden ?? true;
+    if (!accountMenuPanel) return;
+    accountMenuPanel.hidden = !opening;
+    accountMenu?.classList.toggle('open', opening);
+    accountMenuTrigger.setAttribute('aria-expanded', String(opening));
+  });
+
+  accountMenuPanel?.addEventListener('click', (event) => event.stopPropagation());
   document.addEventListener('click', (event) => {
-    if (accountMenu?.open && !accountMenu.contains(event.target)) accountMenu.removeAttribute('open');
+    if (accountMenu && !accountMenu.contains(event.target)) closeAccountMenu();
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && accountMenu?.open) {
-      accountMenu.removeAttribute('open');
-      accountMenu.querySelector('summary')?.focus();
+    if (event.key === 'Escape' && accountMenu?.classList.contains('open')) {
+      closeAccountMenu();
+      accountMenuTrigger?.focus();
     }
   });
   $('#search-form').addEventListener('submit', async (event) => {

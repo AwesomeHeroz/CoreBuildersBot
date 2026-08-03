@@ -3922,3 +3922,335 @@ html[data-theme="light"] .listing-count-pill {
     height: 39px;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Navbar layout correction
+   Keeps brand, section navigation and account controls on one clean row.
+   -------------------------------------------------------------------------- */
+header {
+  min-height: 0;
+}
+
+.app-nav,
+.app-nav .nav-wrapper {
+  min-height: 72px;
+  height: 72px;
+}
+
+.app-nav {
+  overflow: visible;
+}
+
+.app-nav .nav-wrapper.nav-container {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 18px;
+  width: min(1240px, calc(100% - 40px));
+  overflow: visible;
+}
+
+.app-nav .brand-logo.brand {
+  position: static !important;
+  display: inline-flex !important;
+  align-items: center;
+  min-width: 0;
+  height: 72px;
+  margin: 0;
+  transform: none !important;
+}
+
+.nav-center {
+  display: flex;
+  min-width: 0;
+  justify-content: center;
+}
+
+.app-nav ul.desktop-navigation {
+  position: static;
+  float: none !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: max-content;
+  max-width: 100%;
+  height: 46px;
+  margin: 0;
+  padding: 4px;
+  overflow: hidden;
+  list-style: none !important;
+}
+
+.app-nav ul.desktop-navigation > li {
+  position: static;
+  float: none !important;
+  display: flex !important;
+  align-items: center;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  list-style: none !important;
+}
+
+.app-nav ul.desktop-navigation > li::before,
+.app-nav ul.desktop-navigation > li::after,
+.app-nav ul.desktop-navigation > li::marker,
+#mobile-navigation > li::marker {
+  display: none !important;
+  width: 0 !important;
+  content: none !important;
+  font-size: 0 !important;
+}
+
+.app-nav .desktop-navigation .nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: 36px;
+  padding: 0 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.nav-actions {
+  position: relative;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: max-content;
+  height: 72px;
+}
+
+.nav-icon-button,
+.account-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  height: 40px;
+  margin: 0;
+  border: 1px solid var(--nav-border);
+  border-radius: 11px;
+  background: var(--nav-panel);
+  color: #e8e0f1;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.nav-icon-button {
+  padding: 0 12px;
+}
+
+.nav-icon-button:hover,
+.nav-icon-button:focus-visible,
+.account-menu-trigger:hover,
+.account-menu-trigger:focus-visible,
+.account-menu.open .account-menu-trigger {
+  border-color: rgba(198, 146, 255, 0.3);
+  background: var(--nav-panel-hover);
+  color: #fff;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.theme-toggle-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.account-menu {
+  position: relative;
+  display: block;
+  height: 40px;
+}
+
+.account-menu-trigger {
+  min-width: 112px;
+  padding: 0 10px 0 5px;
+}
+
+.account-menu-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+
+.account-menu-chevron {
+  flex: 0 0 auto;
+  margin-left: 1px;
+}
+
+.account-menu.open .account-menu-chevron {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.account-menu-panel[hidden] {
+  display: none !important;
+}
+
+.account-menu-panel {
+  top: calc(100% + 12px);
+}
+
+.mobile-menu-button {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+html[data-theme="light"] .nav-icon-button,
+html[data-theme="light"] .account-menu-trigger {
+  color: var(--text);
+}
+
+@media (max-width: 1240px) and (min-width: 993px) {
+  .app-nav .nav-wrapper.nav-container {
+    gap: 12px;
+    width: min(1180px, calc(100% - 28px));
+  }
+
+  .brand-copy small,
+  .nav-icon-button .nav-action-label {
+    display: none;
+  }
+
+  .nav-icon-button {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .app-nav .desktop-navigation .nav-link {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+}
+
+@media (max-width: 1080px) and (min-width: 993px) {
+  .brand-copy strong {
+    font-size: 1.04rem;
+  }
+
+  .brand-copy small {
+    display: none;
+  }
+
+  .account-menu-trigger {
+    min-width: 40px;
+    width: 40px;
+    padding: 0 5px;
+  }
+
+  .account-menu-trigger .nav-action-label,
+  .account-menu-trigger .account-menu-chevron {
+    display: none;
+  }
+}
+
+@media (max-width: 992px) {
+  .app-nav,
+  .app-nav .nav-wrapper {
+    min-height: 68px;
+    height: 68px;
+  }
+
+  .app-nav .nav-wrapper.nav-container {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 10px;
+    width: min(100% - 28px, 1180px);
+  }
+
+  .app-nav .brand-logo.brand,
+  .nav-actions {
+    height: 68px;
+  }
+
+  .nav-actions {
+    gap: 7px;
+  }
+
+  .nav-icon-button {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .nav-icon-button .nav-action-label {
+    display: none;
+  }
+
+  .mobile-menu-button {
+    display: grid;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-nav,
+  .app-nav .nav-wrapper,
+  .app-nav .brand-logo.brand,
+  .nav-actions {
+    min-height: 64px;
+    height: 64px;
+  }
+
+  .app-nav .nav-wrapper.nav-container {
+    width: calc(100% - 20px);
+    gap: 6px;
+  }
+
+  .brand-copy strong {
+    font-size: 1rem;
+  }
+
+  .brand-copy small {
+    display: none;
+  }
+
+  .brand-logo-image {
+    width: 38px;
+    height: 38px;
+  }
+
+  .account-menu-trigger {
+    min-width: 40px;
+    width: 40px;
+    padding: 0 5px;
+  }
+
+  .account-menu-trigger .nav-action-label,
+  .account-menu-trigger .account-menu-chevron {
+    display: none;
+  }
+
+  .account-menu-panel {
+    position: fixed;
+    top: 70px;
+    right: 10px;
+    width: min(350px, calc(100vw - 20px));
+  }
+}
+
+@media (max-width: 390px) {
+  .brand-copy {
+    display: none;
+  }
+}
+
+@media (max-width: 992px) {
+  .nav-center {
+    display: none !important;
+  }
+}

@@ -8,9 +8,9 @@
   <title>Core Builders Marketplace</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.2.2/dist/css/materialize.min.css">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=20260803-navfix">
   <script src="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.2.2/dist/js/materialize.min.js" defer></script>
-  <script src="/app.js" defer></script>
+  <script src="/app.js?v=20260803-navfix" defer></script>
 </head>
 <body>
   <header>
@@ -21,27 +21,29 @@
           <span class="brand-copy"><strong>Core Builders</strong><small>Marketplace</small></span>
         </a>
 
-        <ul class="right hide-on-med-and-down desktop-navigation">
-          <li><button class="nav-link active" data-section="marketplace" type="button">Marketplace</button></li>
-          <li><button class="nav-link" data-section="shop" type="button">My Shop</button></li>
-          <li><button class="nav-link" data-section="cart" type="button">Cart <span id="cart-count" class="new badge white deep-purple-text" data-badge-caption="">0</span></button></li>
-          <li><button class="nav-link" data-section="orders" type="button">Orders</button></li>
-          <li><button class="nav-link" data-section="sales" type="button">Sales</button></li>
-        </ul>
+        <div class="nav-center hide-on-med-and-down">
+          <ul class="desktop-navigation" aria-label="Marketplace sections">
+            <li><button class="nav-link active" data-section="marketplace" type="button">Marketplace</button></li>
+            <li><button class="nav-link" data-section="shop" type="button">My Shop</button></li>
+            <li><button class="nav-link" data-section="cart" type="button">Cart <span id="cart-count" class="new badge white deep-purple-text" data-badge-caption="">0</span></button></li>
+            <li><button class="nav-link" data-section="orders" type="button">Orders</button></li>
+            <li><button class="nav-link" data-section="sales" type="button">Sales</button></li>
+          </ul>
+        </div>
 
-        <div class="nav-account-zone">
-          <button id="theme-toggle" class="btn-flat waves-effect theme-toggle nav-theme-toggle" type="button" aria-label="Switch to light theme" aria-pressed="false" title="Switch to light theme">
+        <div class="nav-actions">
+          <button id="theme-toggle" class="nav-icon-button waves-effect" type="button" aria-label="Switch to light theme" aria-pressed="false" title="Switch to light theme">
             <span id="theme-toggle-icon" class="theme-toggle-icon" aria-hidden="true">☀</span>
-            <span id="theme-toggle-label">Light</span>
+            <span id="theme-toggle-label" class="nav-action-label">Light theme</span>
           </button>
 
-          <details id="account-menu" class="account-menu">
-            <summary class="account-menu-trigger" aria-label="Open account menu">
+          <div id="account-menu" class="account-menu">
+            <button id="account-menu-trigger" class="account-menu-trigger waves-effect" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="account-menu-panel">
               <span class="account-menu-avatar" aria-hidden="true">CB</span>
-              <span id="account-menu-label">Account</span>
+              <span id="account-menu-label" class="nav-action-label">Account</span>
               <span class="account-menu-chevron" aria-hidden="true"></span>
-            </summary>
-            <div class="account-menu-panel z-depth-4">
+            </button>
+            <div id="account-menu-panel" class="account-menu-panel z-depth-4" hidden>
               <div class="account-menu-heading">
                 <strong>Core Builders account</strong>
                 <small>2b2t · 6b6t · ExtremeCraft</small>
@@ -50,12 +52,12 @@
                 <button class="btn disabled" type="button" disabled>Loading…</button>
               </div>
             </div>
-          </details>
-        </div>
+          </div>
 
-        <button class="sidenav-trigger mobile-menu-button" type="button" data-target="mobile-navigation" aria-label="Open navigation">
-          <span class="menu-icon" aria-hidden="true">☰</span>
-        </button>
+          <button class="sidenav-trigger mobile-menu-button" type="button" data-target="mobile-navigation" aria-label="Open navigation">
+            <span class="menu-icon" aria-hidden="true">☰</span>
+          </button>
+        </div>
       </div>
     </nav>
 
