@@ -463,8 +463,8 @@ function showItemImagePreview(url, status) {
 function clearItemImage() {
   clearItemPreviewObjectUrl();
   $('#item-image-file').value = '';
-  const filePath = document.querySelector('#item-form .file-path');
-  if (filePath) filePath.value = '';
+  const fileName = $('#item-image-name');
+  if (fileName) fileName.textContent = 'No file selected';
   $('#item-image').value = '';
   showItemImagePreview('', '');
 }
@@ -750,13 +750,13 @@ function renderShop() {
     $('#shop-description').value = state.shop.description;
     $('#save-shop').textContent = 'Update shop';
     status.textContent = state.shop.active ? 'Active' : 'Inactive';
-    status.classList.toggle('inactive', !state.shop.active);
+    status.classList.toggle('is-inactive', !state.shop.active);
   } else {
     $('#shop-name').value = '';
     $('#shop-description').value = '';
     $('#save-shop').textContent = 'Create shop';
     status.textContent = 'Not created';
-    status.classList.add('inactive');
+    status.classList.add('is-inactive');
   }
   updateMaterialFields();
   const list = $('#my-items');
@@ -767,17 +767,21 @@ function renderShop() {
     return;
   }
   for (const item of state.myItems) {
-    const row = element('article', 'management-item');
+    const row = element('article', 'cb-management-item');
     row.append(image(item.imageUrl, '', item.name));
-    const info = element('div');
+    const info = element('div', 'cb-management-info');
     info.append(element('h3', '', item.name));
-    info.append(element('p', '', `${item.category} · ${shortCoins(item.price)} · ${item.stock} in stock`));
-    if (!item.active) info.append(element('span', 'status-chip inactive', 'Inactive'));
-    const actions = element('div', 'management-actions');
-    const edit = element('button', 'btn-small btn-flat waves-effect', 'Edit');
+    const meta = element('div', 'cb-management-meta');
+    meta.append(element('span', '', item.category));
+    meta.append(element('span', '', shortCoins(item.price)));
+    meta.append(element('span', '', `${item.stock} in stock`));
+    info.append(meta);
+    if (!item.active) info.append(element('span', 'cb-shop-status is-inactive', 'Inactive'));
+    const actions = element('div', 'cb-management-actions');
+    const edit = element('button', 'cb-shop-btn cb-shop-btn-ghost cb-shop-btn-small', 'Edit');
     edit.type = 'button';
     edit.addEventListener('click', () => beginItemEdit(item));
-    const remove = element('button', 'btn-small waves-effect waves-light red', 'Deactivate');
+    const remove = element('button', 'cb-shop-btn cb-shop-btn-danger cb-shop-btn-small', 'Deactivate');
     remove.type = 'button';
     remove.disabled = !item.active;
     remove.addEventListener('click', () => deactivateItem(item));
@@ -796,6 +800,8 @@ function beginItemEdit(item) {
   $('#item-description').value = item.description;
   $('#item-image').value = item.imageUrl || '';
   $('#item-image-file').value = '';
+  const fileName = $('#item-image-name');
+  if (fileName) fileName.textContent = item.imageUrl ? 'Current image' : 'No file selected';
   showItemImagePreview(item.imageUrl || '', 'Current listing image. Choose a file to replace it.');
   $('#item-stock').value = item.stock;
   $('#item-price').value = item.price;
@@ -814,6 +820,8 @@ function resetItemForm() {
   $('#item-stock').value = '1';
   $('#item-price').value = '1';
   $('#item-active').checked = true;
+  const fileName = $('#item-image-name');
+  if (fileName) fileName.textContent = 'No file selected';
   showItemImagePreview('', '');
   updateMaterialFields();
 }
@@ -1141,6 +1149,8 @@ function bindEvents() {
   $('#item-image-file').addEventListener('change', (event) => {
     clearItemPreviewObjectUrl();
     const file = event.target.files?.[0];
+    const fileName = $('#item-image-name');
+    if (fileName) fileName.textContent = file?.name || 'No file selected';
     if (!file) {
       showItemImagePreview($('#item-image').value, 'Current listing image.');
       return;

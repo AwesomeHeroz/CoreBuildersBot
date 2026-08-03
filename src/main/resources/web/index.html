@@ -187,103 +187,120 @@
           </div>
         </div>
         <div id="shop-guest" class="card-panel empty-state">Log in through the Discord bot, or log in through Minecraft and link Discord, to manage your shop.</div>
-        <div id="shop-dashboard" class="hidden">
-          <div class="row">
-            <div class="col s12 l5">
-              <form id="shop-form" class="card form-card">
-                <div class="card-content">
-                  <div class="card-title-row">
-                    <span class="card-title">Shop profile</span>
-                    <span id="shop-status" class="status-chip inactive">Not created</span>
-                  </div>
-                  <div class="input-field">
-                    <input id="shop-name" type="text" required minlength="3" maxlength="120">
-                    <label class="stacked-label" for="shop-name">Shop name</label>
-                  </div>
-                  <div class="input-field">
-                    <textarea id="shop-description" class="materialize-textarea" required minlength="3" maxlength="1000"></textarea>
-                    <label class="stacked-label" for="shop-description">Description</label>
-                  </div>
-                </div>
-                <div class="card-action">
-                  <button id="save-shop" class="btn waves-effect waves-light deep-purple" type="submit">Create shop</button>
-                </div>
-              </form>
-            </div>
 
-            <div class="col s12 l7">
-              <form id="item-form" class="card form-card hidden">
-                <div class="card-content">
-                  <div class="card-title-row">
-                    <span id="item-form-title" class="card-title">Add listing</span>
-                    <button id="cancel-edit" class="btn-flat waves-effect hidden" type="button">Cancel edit</button>
-                  </div>
-                  <input id="editing-item-id" type="hidden">
-                  <div class="input-field">
-                    <input id="item-name" type="text" required minlength="2" maxlength="150">
-                    <label class="stacked-label" for="item-name">Item name</label>
-                  </div>
-                  <div class="input-field">
-                    <textarea id="item-description" class="materialize-textarea" required minlength="2" maxlength="1000"></textarea>
-                    <label class="stacked-label" for="item-description">Description</label>
-                  </div>
-                  <div class="file-field input-field">
-                    <div class="btn deep-purple">
-                      <span>Image</span>
-                      <input id="item-image-file" type="file" accept="image/png,image/jpeg,image/gif">
-                    </div>
-                    <div class="file-path-wrapper">
-                      <input class="file-path validate" type="text" placeholder="PNG, JPEG, or GIF">
-                    </div>
-                    <span class="helper-text upload-helper">The server-configured upload limit applies.</span>
-                  </div>
-                  <input id="item-image" type="hidden">
-                  <div id="item-image-preview" class="upload-preview card-panel hidden">
-                    <img id="item-image-preview-img" alt="Listing image preview">
-                    <div>
-                      <strong>Image ready</strong>
-                      <small id="item-image-upload-status" class="grey-text text-darken-1">It will be uploaded when the listing is saved.</small>
-                      <button id="remove-item-image" class="btn-flat waves-effect" type="button">Remove image</button>
-                    </div>
-                  </div>
-                  <div class="row compact-row">
-                    <div class="input-field col s6">
-                      <input id="item-stock" type="number" min="0" max="1000000" value="1" required>
-                      <label class="stacked-label" for="item-stock">Stock</label>
-                    </div>
-                    <div class="input-field col s6">
-                      <input id="item-price" type="number" min="1" max="1000000000" value="1" required>
-                      <label class="stacked-label" for="item-price">Price</label>
-                    </div>
-                  </div>
-                  <div class="input-field">
-                    <input id="item-category" type="text" list="category-options" required minlength="2" maxlength="64">
-                    <label class="stacked-label" for="item-category">Category</label>
-                    <datalist id="category-options"></datalist>
-                  </div>
-                  <p class="checkbox-row">
-                    <label class="checkbox-label">
-                      <input id="item-active" type="checkbox" checked>
-                      <span>Listing is active</span>
-                    </label>
-                  </p>
+        <div id="shop-dashboard" class="cb-shop-dashboard hidden">
+          <div class="cb-shop-editor-grid">
+            <form id="shop-form" class="cb-shop-panel cb-shop-profile-form">
+              <header class="cb-shop-panel-header">
+                <div>
+                  <span class="cb-shop-eyebrow">Storefront</span>
+                  <h2>Shop profile</h2>
                 </div>
-                <div class="card-action">
-                  <button class="btn waves-effect waves-light deep-purple" type="submit">Save listing</button>
-                </div>
-              </form>
-            </div>
-          </div>
+                <span id="shop-status" class="cb-shop-status is-inactive">Not created</span>
+              </header>
 
-          <div class="card">
-            <div class="card-content">
-              <div class="card-title-row">
-                <span class="card-title">Your listings</span>
-                <span id="my-listing-count" class="grey-text text-darken-1"></span>
+              <div class="cb-shop-panel-body">
+                <label class="cb-shop-field" for="shop-name">
+                  <span>Shop name</span>
+                  <input id="shop-name" class="cb-shop-input" type="text" required minlength="3" maxlength="120" placeholder="Enter your shop name">
+                </label>
+
+                <label class="cb-shop-field" for="shop-description">
+                  <span>Description</span>
+                  <textarea id="shop-description" class="cb-shop-textarea" required minlength="3" maxlength="1000" placeholder="Tell buyers what your shop offers"></textarea>
+                </label>
               </div>
-              <div id="my-items" class="management-list"></div>
-            </div>
+
+              <footer class="cb-shop-panel-footer">
+                <button id="save-shop" class="cb-shop-btn cb-shop-btn-primary" type="submit">Create shop</button>
+              </footer>
+            </form>
+
+            <form id="item-form" class="cb-shop-panel cb-listing-form hidden">
+              <header class="cb-shop-panel-header">
+                <div>
+                  <span class="cb-shop-eyebrow">Inventory</span>
+                  <h2 id="item-form-title">Add listing</h2>
+                </div>
+                <button id="cancel-edit" class="cb-shop-btn cb-shop-btn-ghost hidden" type="button">Cancel edit</button>
+              </header>
+
+              <input id="editing-item-id" type="hidden">
+
+              <div class="cb-shop-panel-body cb-listing-fields">
+                <label class="cb-shop-field cb-shop-field-wide" for="item-name">
+                  <span>Item name</span>
+                  <input id="item-name" class="cb-shop-input" type="text" required minlength="2" maxlength="150" placeholder="Example: Elytra shulker">
+                </label>
+
+                <label class="cb-shop-field cb-shop-field-wide" for="item-description">
+                  <span>Description</span>
+                  <textarea id="item-description" class="cb-shop-textarea" required minlength="2" maxlength="1000" placeholder="Describe the item, quantity, or service"></textarea>
+                </label>
+
+                <div class="cb-shop-field cb-shop-field-wide">
+                  <span>Listing image</span>
+                  <label class="cb-file-picker" for="item-image-file">
+                    <input id="item-image-file" class="cb-file-input" type="file" accept="image/png,image/jpeg,image/gif">
+                    <span class="cb-file-button">Choose image</span>
+                    <span id="item-image-name" class="cb-file-name">No file selected</span>
+                  </label>
+                  <small>The server-configured upload limit applies. PNG, JPEG, and GIF are supported.</small>
+                </div>
+
+                <input id="item-image" type="hidden">
+
+                <div id="item-image-preview" class="cb-image-preview cb-shop-field-wide hidden">
+                  <img id="item-image-preview-img" alt="Listing image preview">
+                  <div class="cb-image-preview-copy">
+                    <strong>Image ready</strong>
+                    <small id="item-image-upload-status">It will be uploaded when the listing is saved.</small>
+                  </div>
+                  <button id="remove-item-image" class="cb-shop-btn cb-shop-btn-ghost" type="button">Remove</button>
+                </div>
+
+                <label class="cb-shop-field" for="item-stock">
+                  <span>Stock</span>
+                  <input id="item-stock" class="cb-shop-input" type="number" min="0" max="1000000" value="1" required>
+                </label>
+
+                <label class="cb-shop-field" for="item-price">
+                  <span>Price in coins</span>
+                  <input id="item-price" class="cb-shop-input" type="number" min="1" max="1000000000" value="1" required>
+                </label>
+
+                <label class="cb-shop-field cb-shop-field-wide" for="item-category">
+                  <span>Category</span>
+                  <input id="item-category" class="cb-shop-input" type="text" list="category-options" required minlength="2" maxlength="64" placeholder="Example: Kits or consumables">
+                  <datalist id="category-options"></datalist>
+                </label>
+
+                <label class="cb-shop-check cb-shop-field-wide">
+                  <input id="item-active" type="checkbox" checked>
+                  <span class="cb-shop-check-box" aria-hidden="true"></span>
+                  <span class="cb-shop-check-copy">
+                    <strong>Listing is active</strong>
+                    <small>Active listings are visible in the marketplace.</small>
+                  </span>
+                </label>
+              </div>
+
+              <footer class="cb-shop-panel-footer">
+                <button class="cb-shop-btn cb-shop-btn-primary" type="submit">Save listing</button>
+              </footer>
+            </form>
           </div>
+
+          <section class="cb-shop-panel cb-shop-listings-panel" aria-labelledby="my-listings-title">
+            <header class="cb-shop-panel-header">
+              <div>
+                <span class="cb-shop-eyebrow">Catalogue</span>
+                <h2 id="my-listings-title">Your listings</h2>
+              </div>
+              <span id="my-listing-count" class="cb-shop-count"></span>
+            </header>
+            <div id="my-items" class="cb-management-list"></div>
+          </section>
         </div>
       </div>
     </section>
