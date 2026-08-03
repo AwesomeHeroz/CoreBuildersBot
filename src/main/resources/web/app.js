@@ -319,7 +319,42 @@ function openCodeLoginModal({
 }
 const coins = (value) => `${new Intl.NumberFormat('en-US').format(value || 0)} coins`;
 const shortCoins = (value) => `${new Intl.NumberFormat('en-US').format(value || 0)} coins`;
-const dateTime = (value) => (value && value != 0) ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
+function parseDateValue(value) {
+  if (value === null || value === undefined || value === '' || value === 0 || value === '0') return null;
+
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+
+  let normalized = value;
+  if (typeof normalized === 'string') {
+    const trimmed = normalized.trim();
+    if (!trimmed) return null;
+    if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) normalized = Number(trimmed);
+    else {
+      const parsed = new Date(trimmed);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+  }
+
+  if (typeof normalized === 'number' && Number.isFinite(normalized)) {
+    // Jackson commonly serializes java.time.Instant as epoch seconds. JavaScript Date expects milliseconds.
+    const milliseconds = Math.abs(normalized) < 100_000_000_000 ? normalized * 1000 : normalized;
+    const parsed = new Date(milliseconds);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  dateStyle: 'medium',
+  timeStyle: 'short'
+});
+
+const dateTime = (value) => {
+  const parsed = parseDateValue(value);
+  return parsed ? dateTimeFormatter.format(parsed) : '—';
+};
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
