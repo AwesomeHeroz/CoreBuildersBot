@@ -284,10 +284,18 @@ class MarketplaceHttpServerTest {
         assertTrue(csp.contains("https://cdn.jsdelivr.net"));
         assertTrue(csp.contains("https://static.cloudflareinsights.com"));
         assertTrue(csp.contains("https://cloudflareinsights.com"));
-        assertEquals(200, request("GET", "/app.js", null, null, null).status());
+        Response appJavascript = request("GET", "/app.js", null, null, null);
+        assertEquals(200, appJavascript.status());
+        assertEquals("no-cache, no-store, must-revalidate",
+                appJavascript.headers().firstValue("Cache-Control").orElseThrow());
+        Response stylesheet = request("GET", "/styles.css", null, null, null);
+        assertEquals("no-cache, no-store, must-revalidate",
+                stylesheet.headers().firstValue("Cache-Control").orElseThrow());
         Response logo = request("GET", "/core-builders-logo.webp", null, null, null);
         assertEquals(200, logo.status());
         assertEquals("image/webp", logo.headers().firstValue("Content-Type").orElseThrow());
+        assertEquals("no-cache, no-store, must-revalidate",
+                logo.headers().firstValue("Cache-Control").orElseThrow());
 
         Response banner = request("GET", "/core-builders-banner.webp", null, null, null);
         assertEquals(200, banner.status());

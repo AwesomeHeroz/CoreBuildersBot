@@ -20,7 +20,15 @@ const fallbackImage = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const THEME_STORAGE_KEY = 'core-builders-theme';
+const AUTH_SYNC_INTERVAL_MS = 1500;
 let itemPreviewObjectUrl = null;
+let authenticationSyncPromise = null;
+let lastAuthenticationSyncAt = 0;
+let bootstrapComplete = false;
+let sessionExpiryNoticeShown = false;
+let shopProfileDirty = false;
+let itemEditorDirty = false;
+let shopEditorRevision = 0;
 
 function readStoredTheme() {
   try {
@@ -386,6 +394,7 @@ async function api(path, options = {}) {
   const contentType = response.headers.get('content-type') || '';
   const data = contentType.includes('application/json') ? await response.json() : null;
   if (!response.ok) {
+    if (response.status === 401 && path !== '/api/auth/me') invalidateAuthentication();
     const message = data?.error?.message || `Request failed with status ${response.status}`;
     const error = new Error(message);
     error.status = response.status;
@@ -421,6 +430,7 @@ function uploadListingImage(file) {
         resolve(payload);
         return;
       }
+      if (xhr.status === 401) invalidateAuthentication();
       const message = payload?.error?.message || `Image upload failed with status ${xhr.status}`;
       $('#item-image-upload-status').textContent = 'Image upload failed.';
       reject(new Error(message));
@@ -478,12 +488,107 @@ function notify(message, isError = false) {
   notify.timer = window.setTimeout(() => notice.classList.add('hidden'), 6000);
 }
 
+function authenticationKey(user) {
+  if (!user) return 'anonymous';
+  return `${user.memberId || ''}:${user.discordUserId || ''}:${user.username || ''}`;
+}
+
+function activeSectionName() {
+  return $('.view.active')?.id || window.location.hash.slice(1) || 'marketplace';
+}
+
+function clearPrivateState() {
+  state.shop = null;
+  state.myItems = [];
+  state.cart = null;
+  shopProfileDirty = false;
+  itemEditorDirty = false;
+  shopEditorRevision += 1;
+  $('#shop-form')?.reset();
+  if ($('#item-form')) resetItemForm();
+  $('#my-items')?.replaceChildren();
+  $('#cart-items')?.replaceChildren();
+  $('#orders-list')?.replaceChildren();
+  $('#sales-list')?.replaceChildren();
+  if ($('#my-listing-count')) $('#my-listing-count').textContent = '0 listings';
+  if ($('#cart-total')) $('#cart-total').textContent = '0 coins';
+  if ($('#checkout-button')) $('#checkout-button').disabled = true;
+  renderCart();
+}
+
+function invalidateAuthentication() {
+  const wasAuthenticated = Boolean(state.me);
+  state.me = null;
+  state.csrf = null;
+  clearPrivateState();
+  renderAuth(0);
+  renderAuthenticatedVisibility();
+  renderItems();
+  if (wasAuthenticated && !sessionExpiryNoticeShown) {
+    sessionExpiryNoticeShown = true;
+    notify('Your login session expired. Please log in again.', true);
+  }
+}
+
 async function loadMe() {
   const data = await api('/api/auth/me');
   state.me = data.authenticated ? data.user : null;
   state.csrf = data.csrfToken || null;
+  if (state.me) sessionExpiryNoticeShown = false;
   renderAuth(data.balance || 0);
   renderAuthenticatedVisibility();
+}
+
+async function refreshViewsForCurrentAuthentication({
+  reloadCategories = false,
+  reloadMarketplace = true,
+  reloadActiveSection = true,
+  preserveShopEditor = false
+} = {}) {
+  const tasks = [];
+  if (reloadCategories) tasks.push(loadCategories());
+  if (reloadMarketplace) tasks.push(loadItems());
+  else renderItems();
+
+  if (state.me?.discordUserId) {
+    tasks.push(loadCart());
+    if (reloadActiveSection) {
+      const section = activeSectionName();
+      if (section === 'shop') tasks.push(loadShop({ preserveEditor: preserveShopEditor }));
+      if (section === 'orders') tasks.push(loadOrders());
+      if (section === 'sales') tasks.push(loadSales());
+    }
+  } else {
+    clearPrivateState();
+  }
+  await Promise.all(tasks);
+}
+
+async function refreshAuthenticationUi(options = {}) {
+  const previousKey = authenticationKey(state.me);
+  await loadMe();
+  if (previousKey !== authenticationKey(state.me)) clearPrivateState();
+  await refreshViewsForCurrentAuthentication(options);
+}
+
+async function synchronizeAuthentication(force = false) {
+  if (!bootstrapComplete) return;
+  const now = Date.now();
+  if (!force && now - lastAuthenticationSyncAt < AUTH_SYNC_INTERVAL_MS) return;
+  if (authenticationSyncPromise) return authenticationSyncPromise;
+  lastAuthenticationSyncAt = now;
+  authenticationSyncPromise = (async () => {
+    const previousKey = authenticationKey(state.me);
+    await loadMe();
+    const identityChanged = previousKey !== authenticationKey(state.me);
+    if (identityChanged) clearPrivateState();
+    await refreshViewsForCurrentAuthentication({
+      preserveShopEditor: !identityChanged
+    });
+  })().catch((error) => notify(error.message, true)).finally(() => {
+    authenticationSyncPromise = null;
+  });
+  return authenticationSyncPromise;
 }
 
 async function startCodeLogin({
@@ -520,15 +625,13 @@ async function startCodeLogin({
         });
         if (completed.status !== 'completed') throw new Error('Login could not be completed.');
         modal.close(true);
-        await loadMe();
-        if (state.me?.discordUserId) await loadCart();
+        await refreshAuthenticationUi();
         notify(typeof successMessage === 'function' ? successMessage(state.me) : successMessage);
         return;
       }
       if (result.status === 'completed') {
         modal.close(true);
-        await loadMe();
-        if (state.me?.discordUserId) await loadCart();
+        await refreshAuthenticationUi();
         notify(typeof successMessage === 'function' ? successMessage(state.me) : successMessage);
         return;
       }
@@ -604,13 +707,7 @@ function renderAuth(balance) {
   logout.addEventListener('click', async () => {
     try {
       await api('/api/auth/logout', { method: 'POST' });
-      state.me = null;
-      state.csrf = null;
-      state.shop = null;
-      state.myItems = [];
-      state.cart = null;
-      await loadMe();
-      renderCart();
+      await refreshAuthenticationUi({ reloadActiveSection: false });
       notify('You have been logged out.');
       showSection('marketplace');
     } catch (error) { notify(error.message, true); }
@@ -733,9 +830,12 @@ async function addToCart(item) {
   } catch (error) { notify(error.message, true); }
 }
 
-async function loadShop() {
+async function loadShop({ preserveEditor = false } = {}) {
   if (!state.me?.discordUserId) return;
+  if (preserveEditor && (shopProfileDirty || itemEditorDirty)) return;
+  const revision = shopEditorRevision;
   const data = await api('/api/me/shop');
+  if (preserveEditor && revision !== shopEditorRevision) return;
   state.shop = data.shop || null;
   state.myItems = data.items || [];
   renderShop();
@@ -758,6 +858,7 @@ function renderShop() {
     status.textContent = 'Not created';
     status.classList.add('is-inactive');
   }
+  shopProfileDirty = false;
   updateMaterialFields();
   const list = $('#my-items');
   list.replaceChildren();
@@ -807,11 +908,13 @@ function beginItemEdit(item) {
   $('#item-price').value = item.price;
   $('#item-category').value = item.category;
   $('#item-active').checked = item.active;
+  itemEditorDirty = false;
   updateMaterialFields();
   $('#item-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function resetItemForm() {
+  itemEditorDirty = false;
   clearItemPreviewObjectUrl();
   $('#item-form').reset();
   $('#editing-item-id').value = '';
@@ -1096,6 +1199,21 @@ function showSection(name) {
 
 function bindEvents() {
   $$('.nav-link').forEach((button) => button.addEventListener('click', () => showSection(button.dataset.section)));
+  window.addEventListener('focus', () => synchronizeAuthentication());
+  window.addEventListener('pageshow', (event) => synchronizeAuthentication(event.persisted));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') synchronizeAuthentication();
+  });
+  $('#shop-form').addEventListener('input', () => {
+    shopProfileDirty = true;
+    shopEditorRevision += 1;
+  });
+  const markItemEditorDirty = () => {
+    itemEditorDirty = true;
+    shopEditorRevision += 1;
+  };
+  $('#item-form').addEventListener('input', markItemEditorDirty);
+  $('#item-form').addEventListener('change', markItemEditorDirty);
 
   const accountMenu = $('#account-menu');
   const accountMenuTrigger = $('#account-menu-trigger');
@@ -1165,7 +1283,7 @@ function bindEvents() {
     try {
       const existed = Boolean(state.shop);
       await api('/api/me/shop', { method: existed ? 'PUT' : 'POST', body });
-      await loadShop();
+      await Promise.all([loadShop(), loadItems()]);
       notify(existed ? 'Shop saved.' : 'Shop created.');
     } catch (error) { notify(error.message, true); }
   });
@@ -1227,11 +1345,13 @@ async function bootstrap() {
   bindEvents();
   handleLoginResult();
   try {
-    await loadMe();
-    await Promise.all([loadCategories(), loadItems()]);
-    if (state.me?.discordUserId) await loadCart();
+    await refreshAuthenticationUi({
+      reloadCategories: true,
+      reloadActiveSection: false
+    });
     const initial = window.location.hash.slice(1);
     showSection(['marketplace', 'shop', 'cart', 'orders', 'sales'].includes(initial) ? initial : 'marketplace');
+    bootstrapComplete = true;
   } catch (error) {
     notify(error.message, true);
   }

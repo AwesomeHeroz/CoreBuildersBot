@@ -49,6 +49,24 @@ class MarketplaceWebContentTest {
         assertTrue(javascript.contains("The seller must now confirm it"));
     }
 
+
+    @Test
+    void refreshesAllAuthenticationDependentViews() throws IOException {
+        String javascript = resource("/web/app.js");
+
+        assertTrue(javascript.contains("async function refreshAuthenticationUi"));
+        assertTrue(javascript.contains("async function synchronizeAuthentication"));
+        assertTrue(javascript.contains("window.addEventListener('pageshow'"));
+        assertTrue(javascript.contains("document.addEventListener('visibilitychange'"));
+        assertTrue(javascript.contains("if (response.status === 401"));
+        assertTrue(javascript.contains("if (xhr.status === 401) invalidateAuthentication()"));
+        assertTrue(javascript.contains("tasks.push(loadItems())"));
+        assertTrue(javascript.contains("tasks.push(loadCart())"));
+        assertTrue(javascript.contains("preserveShopEditor: !identityChanged"));
+        assertTrue(javascript.contains("if (preserveEditor && (shopProfileDirty || itemEditorDirty)) return"));
+        assertTrue(javascript.contains("await Promise.all([loadShop(), loadItems()])"));
+    }
+
     private static String resource(String path) throws IOException {
         try (InputStream input = MarketplaceWebContentTest.class.getResourceAsStream(path)) {
             if (input == null) throw new IOException("Missing test resource: " + path);

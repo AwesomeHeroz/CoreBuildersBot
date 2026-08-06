@@ -673,7 +673,8 @@ public final class MarketplaceHttpServer implements AutoCloseable {
         }
         Headers headers = exchange.getResponseHeaders();
         headers.set("Content-Type", contentType(resource));
-        headers.set("Cache-Control", resource.endsWith("index.html") ? "no-cache" : "public, max-age=3600");
+        // Frontend resources use stable URLs, so force a fresh copy after each deployment.
+        headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
         if (method.equals("HEAD")) {
             exchange.sendResponseHeaders(200, -1);
             return;
