@@ -6,6 +6,7 @@ import com.corebuilders.bot.config.MusicConfig;
 import com.corebuilders.bot.config.MarketplaceTicketConfig;
 import com.corebuilders.bot.config.ProgressionConfig;
 import com.corebuilders.bot.config.ShopConfig;
+import com.corebuilders.bot.config.SpawnHelpConfig;
 import com.corebuilders.bot.config.WebsiteConfig;
 import com.corebuilders.bot.config.ApplicationPanelConfig;
 import com.corebuilders.bot.db.QueryDslDatabase;
@@ -14,6 +15,7 @@ import com.corebuilders.bot.minecraft.MinecraftIdentityPolicy;
 import com.corebuilders.bot.model.ShopCatalog;
 import com.corebuilders.bot.persistence.QueryDslWebLoginChallengeRepository;
 import com.corebuilders.bot.persistence.QueryDslDiscordWebLoginChallengeRepository;
+import com.corebuilders.bot.persistence.QueryDslSpawnHelpTicketRepository;
 import com.corebuilders.bot.discord.ApplicationDiscordListener;
 import com.corebuilders.bot.discord.ApplicationPanelService;
 import com.corebuilders.bot.discord.CommandRegistrar;
@@ -26,6 +28,8 @@ import com.corebuilders.bot.discord.TicketingMarketplaceOrderOperations;
 import com.corebuilders.bot.discord.DiscordNotifier;
 import com.corebuilders.bot.discord.PermissionService;
 import com.corebuilders.bot.discord.RankRoleService;
+import com.corebuilders.bot.discord.SpawnHelpDiscordListener;
+import com.corebuilders.bot.discord.SpawnHelpPanelService;
 import com.corebuilders.bot.discord.music.DiscordAudioBootstrap;
 import com.corebuilders.bot.discord.music.MusicDiscordListener;
 import com.corebuilders.bot.discord.music.MusicService;
@@ -61,6 +65,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
     private final DiscordBotListener discordListener;
     private final ApplicationDiscordListener applicationListener;
     private final MarketplaceTicketDiscordListener marketplaceTicketListener;
+    private final SpawnHelpDiscordListener spawnHelpListener;
     private final MusicDiscordListener musicListener;
     private final JDA jda;
     private final CommandRegistrar commandRegistrar;
@@ -78,6 +83,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             DiscordBotListener discordListener,
             ApplicationDiscordListener applicationListener,
             MarketplaceTicketDiscordListener marketplaceTicketListener,
+            SpawnHelpDiscordListener spawnHelpListener,
             MusicDiscordListener musicListener,
             JDA jda,
             CommandRegistrar commandRegistrar,
@@ -93,6 +99,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         this.discordListener = discordListener;
         this.applicationListener = applicationListener;
         this.marketplaceTicketListener = marketplaceTicketListener;
+        this.spawnHelpListener = spawnHelpListener;
         this.musicListener = musicListener;
         this.jda = jda;
         this.commandRegistrar = commandRegistrar;
@@ -114,6 +121,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         DiscordBotListener listener = null;
         ApplicationDiscordListener applicationListener = null;
         MarketplaceTicketDiscordListener marketplaceTicketListener = null;
+        SpawnHelpDiscordListener spawnHelpListener = null;
         MusicDiscordListener musicListener = null;
         MarketplaceHttpServer websiteServer = null;
         JDA jda = null;
@@ -178,6 +186,29 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     applicationConfig,
                     properties.getGuildId()
             );
+            SpawnHelpConfig spawnHelpConfig = new SpawnHelpConfig(plugin.getConfig());
+            java.util.Map<String, String> spawnHelpServers = spawnHelpConfig.servers().stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            SpawnHelpConfig.ServerOption::id,
+                            SpawnHelpConfig.ServerOption::name,
+                            (left, right) -> left,
+                            java.util.LinkedHashMap::new
+                    ));
+            SpawnHelpService spawnHelp = new SpawnHelpService(
+                    new QueryDslSpawnHelpTicketRepository(database),
+                    spawnHelpServers
+            );
+            spawnHelpListener = new SpawnHelpDiscordListener(
+                    properties.getGuildId(), spawnHelpConfig, spawnHelp
+            );
+            SpawnHelpPanelService spawnHelpPanelService = new SpawnHelpPanelService(
+                    spawnHelpConfig,
+                    properties.getGuildId(),
+                    messageId -> plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        plugin.getConfig().set("discord.spawn-help.panel.message-id", messageId);
+                        plugin.saveConfig();
+                    })
+            );
             MusicConfig musicConfig = MusicConfig.from(plugin.getConfig());
             MusicService musicService = new MusicService(musicConfig);
             musicListener = new MusicDiscordListener(musicConfig, properties.getGuildId(), musicService);
@@ -192,7 +223,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
             JDABuilder jdaBuilder = JDABuilder.createDefault(token)
                     .setActivity(Activity.playing("Core Builders progression"))
-                    .addEventListeners(applicationListener, musicListener);
+                    .addEventListeners(applicationListener, spawnHelpListener, musicListener);
 
             if (musicConfig.enabled()) {
                 jdaBuilder.enableIntents(GatewayIntent.GUILD_VOICE_STATES);
@@ -216,6 +247,8 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             );
             applicationListener.validateConfiguration(jda);
             applicationPanelService.setupPanel(jda);
+            spawnHelpListener.validateConfiguration(jda);
+            spawnHelpPanelService.setupPanel(jda);
 
             MarketplaceTicketConfig marketplaceTicketConfig = MarketplaceTicketConfig.from(plugin.getConfig());
             MarketplaceTicketStore marketplaceTicketStore = new MarketplaceTicketStore(database);
@@ -287,6 +320,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     listener,
                     applicationListener,
                     marketplaceTicketListener,
+                    spawnHelpListener,
                     musicListener,
                     jda,
                     registrar,
@@ -312,6 +346,9 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             }
             if (marketplaceTicketListener != null) {
                 marketplaceTicketListener.close();
+            }
+            if (spawnHelpListener != null) {
+                spawnHelpListener.close();
             }
             if (musicListener != null) {
                 musicListener.close();
@@ -361,6 +398,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         closeQuietly("Discord client", jda::shutdownNow);
         closeQuietly("Discord command listener", discordListener::shutdown);
         closeQuietly("Marketplace ticket listener", marketplaceTicketListener::close);
+        closeQuietly("Spawn-help listener", spawnHelpListener::close);
         closeQuietly("Application listener", applicationListener::close);
         closeQuietly("Database pool", dataSource::close);
     }

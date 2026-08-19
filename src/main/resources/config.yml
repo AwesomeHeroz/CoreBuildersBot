@@ -26,6 +26,39 @@ discord:
     reconciliation-limit: 100
 
 
+  spawn-help:
+    # Enable after configuring the panel channel, ticket category, and Spawn Helper role IDs.
+    enabled: false
+    panel:
+      # Existing Discord text-channel ID or exact name.
+      channel: "spawn-help"
+      # Managed automatically after the first panel is created.
+      message-id: ""
+      title: "Need Help at Spawn?"
+      description: "Click the button below to request help from a Core Builders spawn helper."
+      button-label: "Request Spawn Help"
+    tickets:
+      # Existing Discord category ID or exact name.
+      category: "spawn-help-tickets"
+      # Supported placeholders: {server}, {server-id}, {ign}, {user}, {id}.
+      name-pattern: "help-{server}-{ign}-{id}"
+    # Security-sensitive role references must be Discord role IDs.
+    helper-role-ids: []
+    # Discord select menus support at most 25 options.
+    servers:
+      - id: "2b2t"
+        name: "2b2t"
+        description: "Request spawn assistance on 2b2t"
+      - id: "6b6t"
+        name: "6b6t"
+        description: "Request spawn assistance on 6b6t"
+    messages:
+      open: "Your spawn-help ticket for {server} is now OPEN. A helper will pick it up when available."
+      picked: "Your spawn-help ticket for {server} is now ON HELP. {helper} picked it up."
+      completed: "Your spawn-help request for {server} has been COMPLETED. Thanks for using Core Builders spawn help."
+      denied: "Your spawn-help request for {server} has been DENIED. Reason: {reason}"
+
+
 music:
   enabled: true
   default-volume: 80

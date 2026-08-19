@@ -43,6 +43,7 @@ public final class Schema {
     public static final QMarketplaceCartItems MARKETPLACE_CART_ITEMS = new QMarketplaceCartItems("mpci");
     public static final QMarketplaceOrders MARKETPLACE_ORDERS = new QMarketplaceOrders("mpo");
     public static final QMarketplaceOrderItems MARKETPLACE_ORDER_ITEMS = new QMarketplaceOrderItems("mpoi");
+    public static final QSpawnHelpTickets SPAWN_HELP_TICKETS = new QSpawnHelpTickets("sht");
 
     private abstract static class Table extends RelationalPathBase<Object> {
         protected Table(String variable, String table) {
@@ -360,5 +361,26 @@ public final class Schema {
         public final DateTimePath<LocalDateTime> discordTicketUpdatedAt = createDateTime("discord_ticket_updated_at", LocalDateTime.class);
         public QMarketplaceOrderItems(String variable) { super(variable, "marketplace_order_items"); }
     }
+
+    public static final class QSpawnHelpTickets extends Table {
+        public final StringPath id = createString("id");
+        public final StringPath discordUserId = createString("discord_user_id");
+        public final StringPath discordUsername = createString("discord_username");
+        public final StringPath activeGuard = createString("active_guard");
+        public final StringPath serverId = createString("server_id");
+        public final StringPath serverName = createString("server_name");
+        public final StringPath inGameName = createString("ingame_name");
+        public final StringPath status = createString("status");
+        public final StringPath helperDiscordId = createString("helper_discord_id");
+        public final StringPath helperUsername = createString("helper_username");
+        public final StringPath denialReason = createString("denial_reason");
+        public final StringPath channelId = createString("channel_id");
+        public final StringPath controlMessageId = createString("control_message_id");
+        public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> updatedAt = createDateTime("updated_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> closedAt = createDateTime("closed_at", LocalDateTime.class);
+        public QSpawnHelpTickets(String variable) { super(variable, "spawn_help_tickets"); }
+    }
+
 
 }

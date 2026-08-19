@@ -1,0 +1,22 @@
+CREATE TABLE spawn_help_tickets (
+    id CHAR(36) PRIMARY KEY,
+    discord_user_id VARCHAR(32) NOT NULL,
+    discord_username VARCHAR(100) NOT NULL,
+    active_guard VARCHAR(32) NULL,
+    server_id VARCHAR(40) NOT NULL,
+    server_name VARCHAR(100) NOT NULL,
+    ingame_name VARCHAR(16) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
+    helper_discord_id VARCHAR(32) NULL,
+    helper_username VARCHAR(100) NULL,
+    denial_reason VARCHAR(500) NULL,
+    channel_id VARCHAR(32) NULL,
+    control_message_id VARCHAR(32) NULL,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    closed_at TIMESTAMP(6) NULL,
+    UNIQUE KEY uq_spawn_help_active_guard (active_guard),
+    UNIQUE KEY uq_spawn_help_channel (channel_id),
+    INDEX idx_spawn_help_status_created (status, created_at),
+    INDEX idx_spawn_help_user_created (discord_user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

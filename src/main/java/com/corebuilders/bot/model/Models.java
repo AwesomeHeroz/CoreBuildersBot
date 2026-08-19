@@ -163,6 +163,24 @@ public final class Models {
             List<ApplicationFile> files
     ) {}
 
+    public record SpawnHelpTicket(
+            UUID id,
+            String discordUserId,
+            String discordUsername,
+            String serverId,
+            String serverName,
+            String inGameName,
+            SpawnHelpStatus status,
+            String helperDiscordId,
+            String helperUsername,
+            String denialReason,
+            String channelId,
+            String controlMessageId,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant closedAt
+    ) {}
+
     public record ApplicationRecord(
             UUID id,
             String discordUserId,
