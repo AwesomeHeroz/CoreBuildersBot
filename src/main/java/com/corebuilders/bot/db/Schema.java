@@ -267,6 +267,8 @@ public final class Schema {
         public final StringPath pendingChannelId = createString("pending_channel_id");
         public final StringPath pendingMessageId = createString("pending_message_id");
         public final StringPath ticketChannelId = createString("ticket_channel_id");
+        public final StringPath firstReviewerDiscordId = createString("first_reviewer_discord_id");
+        public final DateTimePath<LocalDateTime> firstReviewedAt = createDateTime("first_reviewed_at", LocalDateTime.class);
         public final StringPath reviewerDiscordId = createString("reviewer_discord_id");
         public final StringPath reviewReason = createString("review_reason");
         public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);

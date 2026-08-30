@@ -31,7 +31,7 @@ public final class Domain {
     public enum TaskStatus { OPEN, COMPLETED, CANCELLED }
     public enum MissionStatus { OPEN, IN_PROGRESS, COMPLETED, CANCELLED }
     public enum OrderStatus { PENDING, COMPLETED, CANCELLED, REFUNDED }
-    public enum ApplicationStatus { PENDING, ACCEPTED, REJECTED }
+    public enum ApplicationStatus { PENDING, LEADER_REVIEW, ACCEPTED, REJECTED }
     public enum SpawnHelpStatus { OPEN, ON_HELP, COMPLETED, DENIED }
     public enum Reputation {
         UNVERIFIED("Unverified"),

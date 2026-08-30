@@ -1,5 +1,6 @@
 package com.corebuilders.bot.service;
 
+import com.corebuilders.bot.model.ApplicationReviewPolicy;
 import com.corebuilders.bot.db.QueryDslDatabase;
 import com.corebuilders.bot.model.Domain.ApplicationStatus;
 import com.corebuilders.bot.model.Models.ApplicationAnswer;
@@ -21,9 +22,8 @@ import static com.corebuilders.bot.db.Schema.APPLICATIONS;
 /**
  * QueryDSL-backed persistence for Discord membership applications.
  *
- * The service deliberately contains no Discord/JDA code. This keeps state changes
- * reusable and makes application decisions transactional independently of how an
- * interaction was triggered.
+ * The durable lifecycle is deliberately two-stage:
+ * PENDING -> LEADER_REVIEW -> ACCEPTED, with REJECTED terminal from either review stage.
  */
 public final class ApplicationService {
     private static final TypeReference<List<ApplicationAnswer>> ANSWERS_TYPE = new TypeReference<>() {};
@@ -76,7 +76,7 @@ public final class ApplicationService {
             }
 
             audit.log(discordUserId, "APPLICATION_SUBMITTED", discordUserId,
-                    "APPLICATION", id.toString(), "Membership application submitted");
+                    "APPLICATION", id.toString(), "Membership application submitted for recruiter review");
             return get(id);
         });
     }
@@ -86,12 +86,29 @@ public final class ApplicationService {
                         .from(APPLICATIONS)
                         .where(
                                 APPLICATIONS.discordUserId.eq(discordUserId)
-                                        .and(APPLICATIONS.status.eq(ApplicationStatus.PENDING.name()))
+                                        .and(APPLICATIONS.status.in(
+                                                ApplicationStatus.PENDING.name(),
+                                                ApplicationStatus.LEADER_REVIEW.name()
+                                        ))
                         )
                         .orderBy(APPLICATIONS.createdAt.desc())
                         .limit(1)
                         .fetchOne())
                 .map(this::mapApplication));
+    }
+
+    public List<ApplicationRecord> activeForReview() {
+        return database.query(q -> q.select(applicationColumns())
+                .from(APPLICATIONS)
+                .where(APPLICATIONS.status.in(
+                        ApplicationStatus.PENDING.name(),
+                        ApplicationStatus.LEADER_REVIEW.name()
+                ))
+                .orderBy(APPLICATIONS.createdAt.asc())
+                .fetch()
+                .stream()
+                .map(this::mapApplication)
+                .toList());
     }
 
     public Optional<ApplicationRecord> latestForUser(String discordUserId) {
@@ -136,7 +153,7 @@ public final class ApplicationService {
 
     public ApplicationRecord setTicketChannel(UUID id, String channelId, String actorDiscordId) {
         return database.inTransaction(() -> {
-            ApplicationRecord current = lockPending(id);
+            ApplicationRecord current = lockActive(id);
             if (current.ticketChannelId() != null && !current.ticketChannelId().isBlank()) {
                 throw new IllegalStateException("This application already has a discussion ticket.");
             }
@@ -150,24 +167,66 @@ public final class ApplicationService {
         });
     }
 
-    public ApplicationRecord approve(UUID id, String reviewerDiscordId, String reason) {
-        return decide(id, ApplicationStatus.ACCEPTED, reviewerDiscordId, reason);
+    /** First-level recruiter acceptance. This never grants membership or makes the application accepted. */
+    public ApplicationRecord approveFirstLevel(UUID id, String recruiterDiscordId) {
+        return database.inTransaction(() -> {
+            ApplicationRecord current = lock(id);
+            ApplicationReviewPolicy.requireRecruiterReview(current.status());
+
+            ApplicationStatus nextStatus = ApplicationReviewPolicy.recruiterAccept(current.status());
+            database.query(q -> q.update(APPLICATIONS)
+                    .set(APPLICATIONS.status, nextStatus.name())
+                    .set(APPLICATIONS.firstReviewerDiscordId, recruiterDiscordId)
+                    .set(APPLICATIONS.firstReviewedAt, now())
+                    .where(APPLICATIONS.id.eq(id.toString()))
+                    .execute());
+
+            audit.log(recruiterDiscordId, "APPLICATION_RECRUITER_ACCEPTED", current.discordUserId(),
+                    "APPLICATION", id.toString(), "Application advanced to leader review");
+            return get(id);
+        });
     }
 
-    public ApplicationRecord reject(UUID id, String reviewerDiscordId, String reason) {
-        return decide(id, ApplicationStatus.REJECTED, reviewerDiscordId, reason);
+    /** Final leader approval. The caller is responsible for Discord role side-effects and compensation. */
+    public ApplicationRecord approveFinal(UUID id, String leaderDiscordId, String reason) {
+        return decideTerminal(id, ApplicationStatus.LEADER_REVIEW, ApplicationStatus.ACCEPTED,
+                leaderDiscordId, reason);
     }
 
-    private ApplicationRecord decide(
+    public ApplicationRecord rejectFirstLevel(UUID id, String recruiterDiscordId, String reason) {
+        return decideTerminal(id, ApplicationStatus.PENDING, ApplicationStatus.REJECTED,
+                recruiterDiscordId, reason);
+    }
+
+    public ApplicationRecord rejectFinalLevel(UUID id, String leaderDiscordId, String reason) {
+        return decideTerminal(id, ApplicationStatus.LEADER_REVIEW, ApplicationStatus.REJECTED,
+                leaderDiscordId, reason);
+    }
+
+    private ApplicationRecord decideTerminal(
             UUID id,
-            ApplicationStatus status,
+            ApplicationStatus expectedStatus,
+            ApplicationStatus terminalStatus,
             String reviewerDiscordId,
             String reason
     ) {
         return database.inTransaction(() -> {
-            ApplicationRecord current = lockPending(id);
+            ApplicationRecord current = lock(id);
+            ApplicationStatus resolvedStatus;
+            if (expectedStatus == ApplicationStatus.PENDING && terminalStatus == ApplicationStatus.REJECTED) {
+                resolvedStatus = ApplicationReviewPolicy.recruiterReject(current.status());
+            } else if (expectedStatus == ApplicationStatus.LEADER_REVIEW && terminalStatus == ApplicationStatus.ACCEPTED) {
+                resolvedStatus = ApplicationReviewPolicy.leaderAccept(current.status());
+            } else if (expectedStatus == ApplicationStatus.LEADER_REVIEW && terminalStatus == ApplicationStatus.REJECTED) {
+                resolvedStatus = ApplicationReviewPolicy.leaderReject(current.status());
+            } else {
+                throw new IllegalArgumentException(
+                        "Unsupported application review transition: " + expectedStatus + " -> " + terminalStatus
+                );
+            }
+
             database.query(q -> q.update(APPLICATIONS)
-                    .set(APPLICATIONS.status, status.name())
+                    .set(APPLICATIONS.status, resolvedStatus.name())
                     .setNull(APPLICATIONS.pendingGuard)
                     .set(APPLICATIONS.reviewerDiscordId, reviewerDiscordId)
                     .set(APPLICATIONS.reviewReason, trim(reason, 1000))
@@ -175,13 +234,23 @@ public final class ApplicationService {
                     .where(APPLICATIONS.id.eq(id.toString()))
                     .execute());
 
-            audit.log(reviewerDiscordId, "APPLICATION_" + status.name(), current.discordUserId(),
+            audit.log(reviewerDiscordId, "APPLICATION_" + terminalStatus.name(), current.discordUserId(),
                     "APPLICATION", id.toString(), trim(reason, 1000));
             return get(id);
         });
     }
 
-    private ApplicationRecord lockPending(UUID id) {
+    private ApplicationRecord lockActive(UUID id) {
+        ApplicationRecord application = lock(id);
+        if (!ApplicationReviewPolicy.isActive(application.status())) {
+            throw new IllegalStateException(
+                    "Application " + id + " has already been " + application.status().name().toLowerCase() + "."
+            );
+        }
+        return application;
+    }
+
+    private ApplicationRecord lock(UUID id) {
         Tuple row = database.query(q -> q.select(applicationColumns())
                 .from(APPLICATIONS)
                 .where(APPLICATIONS.id.eq(id.toString()))
@@ -190,13 +259,7 @@ public final class ApplicationService {
         if (row == null) {
             throw new IllegalArgumentException("Application not found: " + id);
         }
-        ApplicationRecord application = mapApplication(row);
-        if (application.status() != ApplicationStatus.PENDING) {
-            throw new IllegalStateException(
-                    "Application " + id + " has already been " + application.status().name().toLowerCase() + "."
-            );
-        }
-        return application;
+        return mapApplication(row);
     }
 
     private com.querydsl.core.types.Expression<?>[] applicationColumns() {
@@ -209,6 +272,8 @@ public final class ApplicationService {
                 APPLICATIONS.pendingChannelId,
                 APPLICATIONS.pendingMessageId,
                 APPLICATIONS.ticketChannelId,
+                APPLICATIONS.firstReviewerDiscordId,
+                APPLICATIONS.firstReviewedAt,
                 APPLICATIONS.reviewerDiscordId,
                 APPLICATIONS.reviewReason,
                 APPLICATIONS.createdAt,
@@ -226,6 +291,8 @@ public final class ApplicationService {
                 row.get(APPLICATIONS.pendingChannelId),
                 row.get(APPLICATIONS.pendingMessageId),
                 row.get(APPLICATIONS.ticketChannelId),
+                row.get(APPLICATIONS.firstReviewerDiscordId),
+                instant(row.get(APPLICATIONS.firstReviewedAt)),
                 row.get(APPLICATIONS.reviewerDiscordId),
                 row.get(APPLICATIONS.reviewReason),
                 instant(row.get(APPLICATIONS.createdAt)),

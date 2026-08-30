@@ -40,7 +40,9 @@ public final class ApplicationConfig {
     private final String rejectedChannel;
     private final String ticketCategory;
     private final String ticketNamePattern;
-    private final Set<String> reviewerRoleIds;
+    private final Set<String> recruiterRoleIds;
+    private final Set<String> leaderRoleIds;
+    private final Set<String> allReviewRoleIds;
     private final String approvedRoleId;
     private final boolean preventDuplicatePending;
     private final boolean allowReapplyAfterDecision;
@@ -51,6 +53,7 @@ public final class ApplicationConfig {
     private final List<Question> questions;
 
     private final String submittedMessage;
+    private final String firstLevelAcceptedMessage;
     private final String acceptedMessage;
     private final String rejectedMessage;
     private final String ticketCreatedMessage;
@@ -66,9 +69,31 @@ public final class ApplicationConfig {
                 config.getString("applications.tickets.name-pattern", "application-{username}-{id}"),
                 "application-{username}-{id}"
         );
-        this.reviewerRoleIds = enabled
-                ? parseSnowflakeSet(config.getStringList("applications.reviewer-role-ids"), "applications.reviewer-role-ids")
-                : Set.of();
+        if (enabled) {
+            Set<String> configuredRecruiters = parseSnowflakeSet(
+                    config.getStringList("applications.recruiter-role-ids"),
+                    "applications.recruiter-role-ids"
+            );
+            // Backward-compatible first-level fallback for deployments upgrading from the old one-stage workflow.
+            if (configuredRecruiters.isEmpty()) {
+                configuredRecruiters = parseSnowflakeSet(
+                        config.getStringList("applications.reviewer-role-ids"),
+                        "applications.reviewer-role-ids"
+                );
+            }
+            this.recruiterRoleIds = configuredRecruiters;
+            this.leaderRoleIds = parseSnowflakeSet(
+                    config.getStringList("discord.permissions.leadership-role-ids"),
+                    "discord.permissions.leadership-role-ids"
+            );
+            LinkedHashSet<String> allReviewers = new LinkedHashSet<>(recruiterRoleIds);
+            allReviewers.addAll(leaderRoleIds);
+            this.allReviewRoleIds = Set.copyOf(allReviewers);
+        } else {
+            this.recruiterRoleIds = Set.of();
+            this.leaderRoleIds = Set.of();
+            this.allReviewRoleIds = Set.of();
+        }
         this.approvedRoleId = enabled
                 ? requireSnowflake(config.getString("applications.approval.role-id", ""), "applications.approval.role-id")
                 : clean(config.getString("applications.approval.role-id", ""));
@@ -85,6 +110,11 @@ public final class ApplicationConfig {
         this.submittedMessage = defaultIfBlank(
                 config.getString("applications.messages.submitted", "Your application has been submitted successfully."),
                 "Your application has been submitted successfully."
+        );
+        this.firstLevelAcceptedMessage = defaultIfBlank(
+                config.getString("applications.messages.first-level-accepted",
+                        "Your application passed the recruiter review and is awaiting final leader approval."),
+                "Your application passed the recruiter review and is awaiting final leader approval."
         );
         this.acceptedMessage = defaultIfBlank(
                 config.getString("applications.messages.accepted", "Your Core Builders application has been accepted. Welcome to the group!"),
@@ -114,8 +144,21 @@ public final class ApplicationConfig {
         if (ticketCategory.isBlank()) {
             throw new IllegalStateException("applications.tickets.category must be configured when applications are enabled.");
         }
-        if (reviewerRoleIds.isEmpty()) {
-            throw new IllegalStateException("applications.reviewer-role-ids must contain at least one Discord role ID.");
+        if (recruiterRoleIds.isEmpty()) {
+            throw new IllegalStateException(
+                    "applications.recruiter-role-ids must contain at least one Discord role ID "
+                            + "(legacy applications.reviewer-role-ids is accepted as a fallback)."
+            );
+        }
+        if (leaderRoleIds.isEmpty()) {
+            throw new IllegalStateException("discord.permissions.leadership-role-ids must contain at least one Discord role ID.");
+        }
+        Set<String> overlap = new LinkedHashSet<>(recruiterRoleIds);
+        overlap.retainAll(leaderRoleIds);
+        if (!overlap.isEmpty()) {
+            throw new IllegalStateException(
+                    "Recruiter and leader review role IDs must be different. Overlapping IDs: " + overlap
+            );
         }
         if (questions.isEmpty()) {
             throw new IllegalStateException("applications.questions must contain at least one configured question.");
@@ -239,7 +282,9 @@ public final class ApplicationConfig {
     public String getRejectedChannel() { return rejectedChannel; }
     public String getTicketCategory() { return ticketCategory; }
     public String getTicketNamePattern() { return ticketNamePattern; }
-    public Set<String> getReviewerRoleIds() { return reviewerRoleIds; }
+    public Set<String> getRecruiterRoleIds() { return recruiterRoleIds; }
+    public Set<String> getLeaderRoleIds() { return leaderRoleIds; }
+    public Set<String> getAllReviewRoleIds() { return allReviewRoleIds; }
     public String getApprovedRoleId() { return approvedRoleId; }
     public boolean isPreventDuplicatePending() { return preventDuplicatePending; }
     public boolean isAllowReapplyAfterDecision() { return allowReapplyAfterDecision; }
@@ -249,6 +294,7 @@ public final class ApplicationConfig {
     public long getMaxTotalUploadSizeBytes() { return maxTotalUploadSizeBytes; }
     public List<Question> getQuestions() { return questions; }
     public String getSubmittedMessage() { return submittedMessage; }
+    public String getFirstLevelAcceptedMessage() { return firstLevelAcceptedMessage; }
     public String getAcceptedMessage() { return acceptedMessage; }
     public String getRejectedMessage() { return rejectedMessage; }
     public String getTicketCreatedMessage() { return ticketCreatedMessage; }

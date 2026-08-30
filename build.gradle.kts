@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.corebuilders"
-version = "2.14.2"
+version = "2.15.0"
 
 java {
     toolchain {
@@ -247,6 +247,7 @@ val verifyShadowJar = tasks.register("verifyShadowJar") {
             "db/migration/V10__rename_economy_terms.sql",
             "db/migration/V11__marketplace_discord_tickets.sql",
             "db/migration/V12__spawn_help_tickets.sql",
+            "db/migration/V13__two_level_application_review.sql",
             "com/corebuilders/bot/discord/MarketplaceTicketCoordinator.class",
             "com/corebuilders/bot/discord/MarketplaceTicketDiscordListener.class",
             "com/corebuilders/bot/service/MarketplaceTicketStore.class",

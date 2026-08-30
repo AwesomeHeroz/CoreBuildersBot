@@ -68,6 +68,8 @@ class ApplicationTextFormatterTest {
                 null,
                 ticketChannelId,
                 null,
+                null,
+                null,
                 "Stored reason",
                 Instant.ofEpochSecond(100),
                 null

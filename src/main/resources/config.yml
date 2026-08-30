@@ -189,7 +189,8 @@ applications:
     accepted: "accepted"
     rejected: "denied"
 
-  reviewer-role-ids: []
+  # First-level application reviewers. The legacy reviewer-role-ids key is still accepted as a fallback.
+  recruiter-role-ids: []
   approval:
     role-id: ""
 
@@ -207,8 +208,9 @@ applications:
     delete-on-decision: false
 
   messages:
-    submitted: "Your application has been submitted successfully. The Core Builders team will review it."
-    accepted: "Your Core Builders application has been accepted by {reviewer}. You received the {role} role. Welcome to the group!"
+    submitted: "Your application has been submitted successfully. A recruiter will review it first."
+    first-level-accepted: "Your application passed recruiter review by {reviewer} and is awaiting final leader approval."
+    accepted: "Your Core Builders application has received final leader approval from {reviewer}. You received the {role} role. Welcome to the group!"
     rejected: "Your Core Builders application has been rejected by {reviewer}. Reason: {reason}"
     ticket-created: "A private discussion ticket was created for your application: {ticket}"
     ticket-opening: "Please use this channel to discuss the application."

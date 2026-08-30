@@ -1,5 +1,7 @@
 package com.corebuilders.bot.discord;
 
+import com.corebuilders.bot.model.ApplicationReviewPolicy;
+import com.corebuilders.bot.model.Domain.ApplicationStatus;
 import com.corebuilders.bot.model.Models.ApplicationAnswer;
 import com.corebuilders.bot.model.Models.ApplicationRecord;
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -14,7 +16,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /** Builds and publishes application review messages. */
 public final class ApplicationMessagePublisher {
@@ -26,8 +27,8 @@ public final class ApplicationMessagePublisher {
     }
 
     public Message publishPending(TextChannel channel, ApplicationRecord application) {
-        return channel.sendMessageEmbeds(headerBuilder(application, "New Core Builders Application").build())
-                .addComponents(ActionRow.of(reviewButtons(application.id())))
+        return channel.sendMessageEmbeds(headerBuilder(application, "New Core Builders Application — Recruiter Review").build())
+                .addComponents(ActionRow.of(reviewButtons(application)))
                 .complete();
     }
 
@@ -43,28 +44,34 @@ public final class ApplicationMessagePublisher {
     }
 
     public void updatePendingTicket(Guild guild, ApplicationRecord application) {
+        updatePending(guild, application, titleForStage(application, true), true);
+    }
+
+    public void updatePendingStage(Guild guild, ApplicationRecord application, String title) {
+        updatePending(guild, application, title, true);
+    }
+
+    public void updatePendingDecision(Guild guild, ApplicationRecord application, String title) {
+        updatePending(guild, application, title, false);
+    }
+
+    private void updatePending(Guild guild, ApplicationRecord application, String title, boolean keepReviewControls) {
         if (application.pendingChannelId() == null || application.pendingMessageId() == null) return;
         TextChannel channel = guild.getTextChannelById(application.pendingChannelId());
         if (channel == null) return;
         channel.retrieveMessageById(application.pendingMessageId()).queue(
-                message -> message.editMessageEmbeds(
-                                headerBuilder(application, "Core Builders Application — Discussion Open").build()
-                        ).queue(),
+                message -> {
+                    var edit = message.editMessageEmbeds(headerBuilder(application, title).build());
+                    if (keepReviewControls && ApplicationReviewPolicy.isActive(application.status())) {
+                        edit.setComponents(List.of(ActionRow.of(reviewButtons(application)))).queue();
+                    } else {
+                        edit.setComponents(List.of()).queue();
+                    }
+                },
                 error -> log.warn(
-                        "Could not update pending application message {} after ticket creation: {}",
+                        "Could not update pending application message {}: {}",
                         application.pendingMessageId(), error.getMessage()
                 )
-        );
-    }
-
-    public void updatePendingDecision(Guild guild, ApplicationRecord application, String title) {
-        if (application.pendingChannelId() == null || application.pendingMessageId() == null) return;
-        TextChannel channel = guild.getTextChannelById(application.pendingChannelId());
-        if (channel == null) return;
-        channel.retrieveMessageById(application.pendingMessageId()).queue(message ->
-                message.editMessageEmbeds(headerBuilder(application, title).build())
-                        .setComponents(List.of())
-                        .queue()
         );
     }
 
@@ -96,15 +103,21 @@ public final class ApplicationMessagePublisher {
                 .setTitle(title)
                 .addField("Applicant", "<@" + application.discordUserId() + "> (`" + application.discordUserId() + "`)", false)
                 .addField("Username", application.username(), true)
-                .addField("Status", application.status().name(), true)
+                .addField("Status", ApplicationReviewPolicy.displayStatus(application.status()), true)
                 .addField("Submitted", formatter.timestamp(application.createdAt()), true)
                 .setFooter("Application ID: " + application.id());
 
+        if (application.firstReviewerDiscordId() != null && !application.firstReviewerDiscordId().isBlank()) {
+            embed.addField("Recruiter review", "<@" + application.firstReviewerDiscordId() + ">", true);
+        }
+        if (application.firstReviewedAt() != null) {
+            embed.addField("Recruiter reviewed", formatter.timestamp(application.firstReviewedAt()), true);
+        }
         if (application.reviewerDiscordId() != null && !application.reviewerDiscordId().isBlank()) {
-            embed.addField("Reviewed by", "<@" + application.reviewerDiscordId() + ">", true);
+            embed.addField("Decision by", "<@" + application.reviewerDiscordId() + ">", true);
         }
         if (application.reviewedAt() != null) {
-            embed.addField("Reviewed", formatter.timestamp(application.reviewedAt()), true);
+            embed.addField("Decision time", formatter.timestamp(application.reviewedAt()), true);
         }
         if (application.reviewReason() != null && !application.reviewReason().isBlank()) {
             embed.addField("Decision reason", formatter.truncate(application.reviewReason(), 1024), false);
@@ -115,12 +128,32 @@ public final class ApplicationMessagePublisher {
         return embed;
     }
 
-    private static List<Button> reviewButtons(UUID applicationId) {
-        String id = applicationId.toString();
-        return List.of(
-                Button.success("app:approve:" + id, "Approve"),
-                Button.danger("app:reject:" + id, "Reject"),
-                Button.primary("app:ticket:" + id, "Create Discussion Ticket")
-        );
+    static List<Button> reviewButtons(ApplicationRecord application) {
+        String id = application.id().toString();
+        if (application.status() == ApplicationStatus.PENDING) {
+            return List.of(
+                    Button.success("app:recruiter-approve:" + id, "Recruiter Accept"),
+                    Button.danger("app:recruiter-reject:" + id, "Recruiter Reject"),
+                    Button.primary("app:ticket:" + id, "Create Discussion Ticket")
+            );
+        }
+        if (application.status() == ApplicationStatus.LEADER_REVIEW) {
+            return List.of(
+                    Button.success("app:leader-approve:" + id, "Final Approve"),
+                    Button.danger("app:leader-reject:" + id, "Final Reject"),
+                    Button.primary("app:ticket:" + id, "Create Discussion Ticket")
+            );
+        }
+        return List.of();
+    }
+
+    private static String titleForStage(ApplicationRecord application, boolean discussionOpen) {
+        String suffix = discussionOpen ? " — Discussion Open" : "";
+        return switch (application.status()) {
+            case PENDING -> "Core Builders Application — Recruiter Review" + suffix;
+            case LEADER_REVIEW -> "Core Builders Application — Leader Review" + suffix;
+            case ACCEPTED -> "Core Builders Application — Accepted";
+            case REJECTED -> "Core Builders Application — Rejected";
+        };
     }
 }

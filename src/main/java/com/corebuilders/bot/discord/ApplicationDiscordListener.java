@@ -1,6 +1,7 @@
 package com.corebuilders.bot.discord;
 
 import com.corebuilders.bot.application.ApplicationQuestionPages;
+import com.corebuilders.bot.model.ApplicationReviewPolicy;
 import com.corebuilders.bot.application.ApplicationSessionStore;
 import com.corebuilders.bot.application.ApplicationSessionStore.Session;
 import com.corebuilders.bot.config.ApplicationConfig;
@@ -42,8 +43,10 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /** Coordinates Discord application interactions and delegates persistence, uploads,
@@ -63,6 +66,7 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
     private final ApplicationUploadPreserver uploadPreserver;
     private final ApplicationMessagePublisher messagePublisher;
     private final ApplicationTicketChannels ticketChannels = new ApplicationTicketChannels();
+    private final ConcurrentHashMap<UUID, ReentrantLock> reviewLocks = new ConcurrentHashMap<>();
 
     public ApplicationDiscordListener(
             ApplicationService applications,
@@ -118,14 +122,18 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
             validateResource(problems, () -> resources.requireCategory(
                     guild, config.getTicketCategory(), "applications.tickets.category"
             ));
-            if (resources.roles(guild, config.getReviewerRoleIds()).isEmpty()) {
-                problems.add("None of applications.reviewer-role-ids could be resolved: " + config.getReviewerRoleIds());
+            if (resources.roles(guild, config.getRecruiterRoleIds()).isEmpty()) {
+                problems.add("None of applications.recruiter-role-ids could be resolved: " + config.getRecruiterRoleIds());
+            }
+            if (resources.roles(guild, config.getLeaderRoleIds()).isEmpty()) {
+                problems.add("None of discord.permissions.leadership-role-ids could be resolved: " + config.getLeaderRoleIds());
             }
             validateResource(problems, () -> resources.requireRole(
                     guild, config.getApprovedRoleId(), "applications.approval.role-id"
             ));
 
             if (problems.isEmpty()) {
+                reconcileActiveReviewMessages(guild);
                 log.info(
                         "Application workflow ready in guild '{}': pending='{}', accepted='{}', rejected='{}', ticket category='{}'.",
                         guild.getName(), config.getPendingChannel(), config.getAcceptedChannel(),
@@ -137,6 +145,19 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
                         problems.size(), guild.getName(), String.join(" | ", problems)
                 );
             }
+        }
+    }
+
+    private void reconcileActiveReviewMessages(Guild guild) {
+        try {
+            for (ApplicationRecord application : applications.activeForReview()) {
+                String title = application.status() == ApplicationStatus.PENDING
+                        ? "Core Builders Application — Recruiter Review"
+                        : "Core Builders Application — Leader Review";
+                messagePublisher.updatePendingStage(guild, application, title);
+            }
+        } catch (RuntimeException error) {
+            log.warn("Could not reconcile application review buttons during startup.", error);
         }
     }
 
@@ -194,8 +215,10 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
                 case "apply" -> startApplication(event);
                 case "continue" -> continueApplication(event, parts);
                 case "cancel" -> cancelApplication(event, parts);
-                case "approve" -> approveApplication(event, parts);
-                case "reject" -> openRejectModal(event, parts);
+                case "recruiter-approve", "approve" -> approveFirstLevelApplication(event, parts);
+                case "recruiter-reject", "reject" -> openRejectModal(event, parts, ApplicationStatus.PENDING);
+                case "leader-approve" -> approveFinalApplication(event, parts);
+                case "leader-reject" -> openRejectModal(event, parts, ApplicationStatus.LEADER_REVIEW);
                 case "ticket" -> createDiscussionTicket(event, parts);
                 default -> event.reply("Unknown application action.").setEphemeral(true).queue();
             }
@@ -222,8 +245,10 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
             if (parts.length < 3) throw new IllegalArgumentException("Invalid application modal.");
             if ("form".equals(parts[1])) {
                 handleFormPage(event, parts);
-            } else if ("reject".equals(parts[1])) {
-                handleRejectModal(event, parts);
+            } else if ("reject-recruiter".equals(parts[1]) || "reject".equals(parts[1])) {
+                handleRejectModal(event, parts, ApplicationStatus.PENDING);
+            } else if ("reject-leader".equals(parts[1])) {
+                handleRejectModal(event, parts, ApplicationStatus.LEADER_REVIEW);
             }
         } catch (Exception error) {
             replyError(event, error);
@@ -438,60 +463,138 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
                 });
     }
 
-    private void approveApplication(ButtonInteractionEvent event, String[] parts) {
-        if (parts.length < 3) throw new IllegalArgumentException("Invalid approval action.");
-        requireReviewer(event.getMember());
+    private void approveFirstLevelApplication(ButtonInteractionEvent event, String[] parts) {
+        if (parts.length < 3) throw new IllegalArgumentException("Invalid recruiter approval action.");
+        requireRecruiter(event.getMember());
         UUID applicationId = parseUuid(parts[2], "application ID");
+
         event.deferReply(true).queue(hook -> executor.submit(() -> {
             try {
                 Guild guild = event.getGuild();
-                ApplicationRecord pending = applications.get(applicationId);
-                requirePending(pending);
+                ApplicationRecord advanced = applications.approveFirstLevel(applicationId, event.getUser().getId());
 
-                Member applicant = guild.retrieveMemberById(pending.discordUserId()).complete();
-                Role approvedRole = resources.requireRole(guild, config.getApprovedRoleId(), "applications.approval.role-id");
-                guild.addRoleToMember(applicant, approvedRole).complete();
-
-                ApplicationRecord accepted;
-                try {
-                    accepted = applications.approve(
-                            applicationId,
-                            event.getUser().getId(),
-                            "Approved through application review."
-                    );
-                } catch (Exception databaseError) {
-                    // Compensate the Discord-side role change if the durable decision could not be saved.
-                    try {
-                        guild.removeRoleFromMember(applicant, approvedRole).complete();
-                    } catch (Exception rollbackError) {
-                        databaseError.addSuppressed(rollbackError);
-                    }
-                    throw databaseError;
-                }
-                TextChannel acceptedChannel = resources.requireTextChannel(
-                        guild, config.getAcceptedChannel(), "applications.channels.accepted"
+                messagePublisher.updatePendingStage(
+                        guild, advanced, "Application Passed Recruiter Review — Awaiting Leader Approval"
                 );
-                messagePublisher.sendPacket(acceptedChannel, accepted, "Accepted Core Builders Application");
-                messagePublisher.updatePendingDecision(guild, accepted, "Application Accepted");
                 notifyApplicant(
                         guild.getJDA(),
-                        accepted.discordUserId(),
-                        formatMessage(config.getAcceptedMessage(), accepted, event.getUser(), approvedRole, null)
+                        advanced.discordUserId(),
+                        formatMessage(config.getFirstLevelAcceptedMessage(), advanced, event.getUser(), null, null)
                 );
-                notifyTicketDecision(guild, accepted, "✅ This application was **accepted** by " + event.getUser().getAsMention() + ".");
-                hook.editOriginal("✅ Application accepted and role **" + approvedRole.getName() + "** added to <@"
-                        + accepted.discordUserId() + ">.").queue();
+                notifyTicketProgress(
+                        guild, advanced,
+                        "✅ This application passed **recruiter review** by " + event.getUser().getAsMention()
+                                + " and is now waiting for final leader approval."
+                );
+                hook.editOriginal("✅ Recruiter review accepted. The application is now waiting for final leader approval.").queue();
             } catch (Exception error) {
                 hook.editOriginal("❌ " + safeMessage(error)).queue();
             }
         }));
     }
 
-    private void openRejectModal(ButtonInteractionEvent event, String[] parts) {
-        if (parts.length < 3) throw new IllegalArgumentException("Invalid rejection action.");
-        requireReviewer(event.getMember());
+    private void approveFinalApplication(ButtonInteractionEvent event, String[] parts) {
+        if (parts.length < 3) throw new IllegalArgumentException("Invalid final approval action.");
+        requireLeader(event.getMember());
         UUID applicationId = parseUuid(parts[2], "application ID");
-        requirePending(applications.get(applicationId));
+
+        event.deferReply(true).queue(hook -> executor.submit(() -> {
+            ReentrantLock lock = reviewLocks.computeIfAbsent(applicationId, ignored -> new ReentrantLock());
+            lock.lock();
+            try {
+                Guild guild = event.getGuild();
+                ApplicationRecord pending = applications.get(applicationId);
+                ApplicationReviewPolicy.requireLeaderReview(pending.status());
+
+                Member applicant = guild.retrieveMemberById(pending.discordUserId()).complete();
+                Role approvedRole = resources.requireRole(guild, config.getApprovedRoleId(), "applications.approval.role-id");
+                boolean alreadyHadApprovedRole = applicant.getRoles().stream()
+                        .anyMatch(role -> role.getId().equals(approvedRole.getId()));
+                if (!alreadyHadApprovedRole) {
+                    guild.addRoleToMember(applicant, approvedRole).complete();
+                }
+
+                ApplicationRecord accepted;
+                try {
+                    accepted = applications.approveFinal(
+                            applicationId,
+                            event.getUser().getId(),
+                            "Final approval by leader after recruiter acceptance."
+                    );
+                } catch (Exception databaseError) {
+                    // If another bot instance completed the same final approval, do not remove a valid member role.
+                    ApplicationRecord latest;
+                    try {
+                        latest = applications.get(applicationId);
+                    } catch (Exception verificationError) {
+                        databaseError.addSuppressed(verificationError);
+                        throw new IllegalStateException(
+                                "The final database update failed and the saved application state could not be verified. "
+                                        + "The member role was left unchanged; verify the application status before retrying.",
+                                databaseError
+                        );
+                    }
+                    if (latest.status() == ApplicationStatus.ACCEPTED) {
+                        hook.editOriginal("✅ This application was already finally accepted. The member role is present.").queue();
+                        return;
+                    }
+                    if (!alreadyHadApprovedRole) {
+                        try {
+                            guild.removeRoleFromMember(applicant, approvedRole).complete();
+                        } catch (Exception rollbackError) {
+                            databaseError.addSuppressed(rollbackError);
+                        }
+                    }
+                    throw databaseError;
+                }
+
+                String postDecisionWarning = null;
+                try {
+                    TextChannel acceptedChannel = resources.requireTextChannel(
+                            guild, config.getAcceptedChannel(), "applications.channels.accepted"
+                    );
+                    messagePublisher.sendPacket(acceptedChannel, accepted, "Accepted Core Builders Application");
+                    messagePublisher.updatePendingDecision(guild, accepted, "Application Accepted — Final Leader Approval");
+                    notifyApplicant(
+                            guild.getJDA(),
+                            accepted.discordUserId(),
+                            formatMessage(config.getAcceptedMessage(), accepted, event.getUser(), approvedRole, null)
+                    );
+                    notifyTicketDecision(
+                            guild, accepted,
+                            "✅ This application received **final leader approval** from " + event.getUser().getAsMention() + "."
+                    );
+                } catch (Exception postDecisionError) {
+                    postDecisionWarning = safeMessage(postDecisionError);
+                    log.warn("Application {} was accepted, but a post-decision Discord update failed.",
+                            accepted.id(), postDecisionError);
+                }
+
+                String roleResult = alreadyHadApprovedRole
+                        ? "already had role **" + approvedRole.getName() + "**"
+                        : "received role **" + approvedRole.getName() + "**";
+                String result = "✅ Final approval complete. <@" + accepted.discordUserId() + "> " + roleResult + ".";
+                if (postDecisionWarning != null) {
+                    result += "\n⚠️ The decision is saved, but a notification/channel update failed: " + postDecisionWarning;
+                }
+                hook.editOriginal(result).queue();
+            } catch (Exception error) {
+                hook.editOriginal("❌ " + safeMessage(error)).queue();
+            } finally {
+                lock.unlock();
+            }
+        }));
+    }
+
+    private void openRejectModal(
+            ButtonInteractionEvent event,
+            String[] parts,
+            ApplicationStatus reviewStage
+    ) {
+        if (parts.length < 3) throw new IllegalArgumentException("Invalid rejection action.");
+        requireRoleForStage(event.getMember(), reviewStage);
+        UUID applicationId = parseUuid(parts[2], "application ID");
+        requireReviewStage(applications.get(applicationId), reviewStage);
 
         TextInput reason = TextInput.create("reason", TextInputStyle.PARAGRAPH)
                 .setRequired(true)
@@ -499,15 +602,21 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
                 .setMaxLength(1000)
                 .setPlaceholder("Explain why the application is being rejected.")
                 .build();
-        Modal modal = Modal.create("app:reject:" + applicationId, "Reject Application")
+        String modalAction = reviewStage == ApplicationStatus.PENDING ? "reject-recruiter" : "reject-leader";
+        String title = reviewStage == ApplicationStatus.PENDING ? "Recruiter Reject Application" : "Leader Reject Application";
+        Modal modal = Modal.create("app:" + modalAction + ":" + applicationId, title)
                 .addComponents(Label.of("Rejection reason", reason))
                 .build();
         event.replyModal(modal).queue();
     }
 
-    private void handleRejectModal(ModalInteractionEvent event, String[] parts) {
+    private void handleRejectModal(
+            ModalInteractionEvent event,
+            String[] parts,
+            ApplicationStatus reviewStage
+    ) {
         if (parts.length < 3) throw new IllegalArgumentException("Invalid rejection modal.");
-        requireReviewer(event.getMember());
+        requireRoleForStage(event.getMember(), reviewStage);
         UUID applicationId = parseUuid(parts[2], "application ID");
         String reason = Optional.ofNullable(event.getValue("reason"))
                 .map(ModalMapping::getAsOptionalString)
@@ -517,21 +626,42 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
         event.deferReply(true).queue(hook -> executor.submit(() -> {
             try {
                 Guild guild = event.getGuild();
-                ApplicationRecord rejected = applications.reject(applicationId, event.getUser().getId(), reason);
-                TextChannel rejectedChannel = resources.requireTextChannel(
-                        guild, config.getRejectedChannel(), "applications.channels.rejected"
-                );
-                messagePublisher.sendPacket(rejectedChannel, rejected, "Rejected Core Builders Application");
-                messagePublisher.updatePendingDecision(guild, rejected, "Application Rejected");
-                notifyApplicant(
-                        guild.getJDA(),
-                        rejected.discordUserId(),
-                        formatMessage(config.getRejectedMessage(), rejected, event.getUser(), null, reason)
-                );
-                notifyTicketDecision(guild, rejected,
-                        "❌ This application was **rejected** by " + event.getUser().getAsMention()
-                                + ".\n**Reason:** " + reason);
-                hook.editOriginal("Application rejected. The applicant has been notified.").queue();
+                ApplicationRecord rejected = reviewStage == ApplicationStatus.PENDING
+                        ? applications.rejectFirstLevel(applicationId, event.getUser().getId(), reason)
+                        : applications.rejectFinalLevel(applicationId, event.getUser().getId(), reason);
+
+                String reviewLabel = reviewStage == ApplicationStatus.PENDING ? "Recruiter" : "Leader";
+                String postDecisionWarning = null;
+                try {
+                    TextChannel rejectedChannel = resources.requireTextChannel(
+                            guild, config.getRejectedChannel(), "applications.channels.rejected"
+                    );
+                    messagePublisher.sendPacket(rejectedChannel, rejected,
+                            "Rejected Core Builders Application — " + reviewLabel + " Review");
+                    messagePublisher.updatePendingDecision(guild, rejected, "Application Rejected — " + reviewLabel + " Review");
+                    notifyApplicant(
+                            guild.getJDA(),
+                            rejected.discordUserId(),
+                            formatMessage(config.getRejectedMessage(), rejected, event.getUser(), null, reason)
+                    );
+                    notifyTicketDecision(
+                            guild, rejected,
+                            "❌ This application was **rejected during " + reviewLabel.toLowerCase(Locale.ROOT) + " review** by "
+                                    + event.getUser().getAsMention() + ".\n**Reason:** " + reason
+                    );
+                } catch (Exception postDecisionError) {
+                    postDecisionWarning = safeMessage(postDecisionError);
+                    log.warn("Application {} was rejected, but a post-decision Discord update failed.",
+                            rejected.id(), postDecisionError);
+                }
+
+                String result = "Application rejected during " + reviewLabel.toLowerCase(Locale.ROOT) + " review.";
+                if (postDecisionWarning == null) {
+                    result += " The applicant has been notified.";
+                } else {
+                    result += "\n⚠️ The rejection is saved, but a notification/channel update failed: " + postDecisionWarning;
+                }
+                hook.editOriginal(result).queue();
             } catch (Exception error) {
                 hook.editOriginal("❌ " + safeMessage(error)).queue();
             }
@@ -540,14 +670,14 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
 
     private void createDiscussionTicket(ButtonInteractionEvent event, String[] parts) {
         if (parts.length < 3) throw new IllegalArgumentException("Invalid discussion-ticket action.");
-        requireReviewer(event.getMember());
+        requireAnyReviewer(event.getMember());
         UUID applicationId = parseUuid(parts[2], "application ID");
 
         event.deferReply(true).queue(hook -> executor.submit(() -> {
             try {
                 Guild guild = event.getGuild();
                 ApplicationRecord application = applications.get(applicationId);
-                requirePending(application);
+                requireActive(application);
 
                 if (application.ticketChannelId() != null && !application.ticketChannelId().isBlank()) {
                     TextChannel existing = guild.getTextChannelById(application.ticketChannelId());
@@ -559,7 +689,7 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
 
                 Category category = resources.requireCategory(guild, config.getTicketCategory(), "applications.tickets.category");
                 Member applicant = guild.retrieveMemberById(application.discordUserId()).complete();
-                List<Role> reviewers = resources.roles(guild, config.getReviewerRoleIds());
+                List<Role> reviewers = resources.roles(guild, config.getAllReviewRoleIds());
                 if (reviewers.isEmpty()) {
                     throw new IllegalStateException("No configured reviewer roles could be found.");
                 }
@@ -600,6 +730,12 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
         }));
     }
 
+    private void notifyTicketProgress(Guild guild, ApplicationRecord application, String message) {
+        if (application.ticketChannelId() == null || application.ticketChannelId().isBlank()) return;
+        TextChannel ticket = guild.getTextChannelById(application.ticketChannelId());
+        if (ticket != null) ticket.sendMessage(message).queue();
+    }
+
     private void notifyTicketDecision(Guild guild, ApplicationRecord application, String message) {
         if (application.ticketChannelId() == null || application.ticketChannelId().isBlank()) return;
         TextChannel ticket = guild.getTextChannelById(application.ticketChannelId());
@@ -612,13 +748,37 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
         }
     }
 
-    private void requireReviewer(Member member) {
-        if (member == null) throw new IllegalStateException("Could not resolve the reviewing Discord member.");
-        Set<String> configured = config.getReviewerRoleIds();
-        boolean allowed = member.getRoles().stream().anyMatch(role -> configured.contains(role.getId()));
-        if (!allowed) {
-            throw new SecurityException("Only configured application reviewer roles may perform this action.");
+    private void requireRecruiter(Member member) {
+        requireConfiguredRole(member, config.getRecruiterRoleIds(),
+                "Only configured first-level recruiter roles may perform this action.");
+    }
+
+    private void requireLeader(Member member) {
+        requireConfiguredRole(member, config.getLeaderRoleIds(),
+                "Only configured leader-level roles may perform this final review action.");
+    }
+
+    private void requireAnyReviewer(Member member) {
+        requireConfiguredRole(member, config.getAllReviewRoleIds(),
+                "Only configured recruiter or leader review roles may perform this action.");
+    }
+
+    private void requireRoleForStage(Member member, ApplicationStatus reviewStage) {
+        if (reviewStage == ApplicationStatus.PENDING) {
+            requireRecruiter(member);
+            return;
         }
+        if (reviewStage == ApplicationStatus.LEADER_REVIEW) {
+            requireLeader(member);
+            return;
+        }
+        throw new IllegalArgumentException("Invalid application review stage.");
+    }
+
+    private static void requireConfiguredRole(Member member, Set<String> configured, String errorMessage) {
+        if (member == null) throw new IllegalStateException("Could not resolve the reviewing Discord member.");
+        boolean allowed = member.getRoles().stream().anyMatch(role -> configured.contains(role.getId()));
+        if (!allowed) throw new SecurityException(errorMessage);
     }
 
     private List<Guild> targetGuilds(JDA jda) {
@@ -681,10 +841,20 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
         return questionPages.pageCount();
     }
 
-    private static void requirePending(ApplicationRecord application) {
-        if (application.status() != ApplicationStatus.PENDING) {
+    private static void requireActive(ApplicationRecord application) {
+        if (!ApplicationReviewPolicy.isActive(application.status())) {
             throw new IllegalStateException("This application has already been "
                     + application.status().name().toLowerCase(Locale.ROOT) + ".");
+        }
+    }
+
+    private static void requireReviewStage(ApplicationRecord application, ApplicationStatus reviewStage) {
+        if (reviewStage == ApplicationStatus.PENDING) {
+            ApplicationReviewPolicy.requireRecruiterReview(application.status());
+        } else if (reviewStage == ApplicationStatus.LEADER_REVIEW) {
+            ApplicationReviewPolicy.requireLeaderReview(application.status());
+        } else {
+            throw new IllegalArgumentException("Invalid application review stage.");
         }
     }
 
@@ -733,6 +903,7 @@ public final class ApplicationDiscordListener extends ListenerAdapter implements
     public void close() {
         executor.shutdownNow();
         sessionStore.clear();
+        reviewLocks.clear();
     }
 
     private record CollectedAnswer(Question question, String text, List<Message.Attachment> attachments) {}

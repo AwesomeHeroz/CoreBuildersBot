@@ -190,6 +190,8 @@ public final class Models {
             String pendingChannelId,
             String pendingMessageId,
             String ticketChannelId,
+            String firstReviewerDiscordId,
+            Instant firstReviewedAt,
             String reviewerDiscordId,
             String reviewReason,
             Instant createdAt,
