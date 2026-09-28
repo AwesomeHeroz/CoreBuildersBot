@@ -1,5 +1,7 @@
 # Core Builders
 
+[![Join CoreBuilders Discord](https://invidget.switchblade.xyz/corebuilders)](https://discord.gg/corebuilders)
+
 Core Builders is a Discord bot Paper 1.21.4 plugin that runs a Discord bot and Minecraft integration from the same JAR.
 
 Why keep plugin and discord bot same in Jar? Save cost 
