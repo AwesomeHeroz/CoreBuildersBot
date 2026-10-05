@@ -15,6 +15,23 @@ discord:
     achievements: "achievements"
     leaderboard: "core-leaderboard"
 
+  # Give/remove roles when users react to one configured Discord message.
+  reaction-roles:
+    enabled: false
+    # Existing Discord text-channel ID or exact channel name.
+    channel: "roles"
+    # ID of the message users react to.
+    message-id: ""
+    # true = removing the reaction also removes the mapped role.
+    remove-role-on-reaction-remove: true
+    mappings:
+      # Unicode emoji can be entered directly.
+      - reaction: "⚔️"
+        role-id: ""
+      # Custom emoji can use its ID, name:id, <:name:id>, or <a:name:id>.
+      # - reaction: "123456789012345678"
+      #   role-id: "123456789012345678"
+
   marketplace-tickets:
     enabled: true
     # Existing Discord category ID or exact category name.

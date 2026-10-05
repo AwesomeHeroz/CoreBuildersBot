@@ -5,6 +5,7 @@ import com.corebuilders.bot.config.BotProperties;
 import com.corebuilders.bot.config.MusicConfig;
 import com.corebuilders.bot.config.MarketplaceTicketConfig;
 import com.corebuilders.bot.config.ProgressionConfig;
+import com.corebuilders.bot.config.ReactionRoleConfig;
 import com.corebuilders.bot.config.ShopConfig;
 import com.corebuilders.bot.config.SpawnHelpConfig;
 import com.corebuilders.bot.config.WebsiteConfig;
@@ -28,6 +29,7 @@ import com.corebuilders.bot.discord.TicketingMarketplaceOrderOperations;
 import com.corebuilders.bot.discord.DiscordNotifier;
 import com.corebuilders.bot.discord.PermissionService;
 import com.corebuilders.bot.discord.RankRoleService;
+import com.corebuilders.bot.discord.ReactionRoleDiscordListener;
 import com.corebuilders.bot.discord.SpawnHelpDiscordListener;
 import com.corebuilders.bot.discord.SpawnHelpPanelService;
 import com.corebuilders.bot.discord.music.DiscordAudioBootstrap;
@@ -212,6 +214,9 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             MusicConfig musicConfig = MusicConfig.from(plugin.getConfig());
             MusicService musicService = new MusicService(musicConfig);
             musicListener = new MusicDiscordListener(musicConfig, properties.getGuildId(), musicService);
+            ReactionRoleConfig reactionRoleConfig = new ReactionRoleConfig(plugin.getConfig());
+            ReactionRoleDiscordListener reactionRoleListener = new ReactionRoleDiscordListener(
+                    properties.getGuildId(), reactionRoleConfig);
 
             String token = properties.getToken();
             if (token == null || token.isBlank()) {
@@ -223,7 +228,8 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
             JDABuilder jdaBuilder = JDABuilder.createDefault(token)
                     .setActivity(Activity.playing("Core Builders progression"))
-                    .addEventListeners(applicationListener, spawnHelpListener, musicListener);
+                    .addEventListeners(applicationListener, spawnHelpListener, musicListener, reactionRoleListener)
+                    .enableIntents(GatewayIntent.GUILD_MESSAGE_REACTIONS);
 
             if (musicConfig.enabled()) {
                 jdaBuilder.enableIntents(GatewayIntent.GUILD_VOICE_STATES);
@@ -249,6 +255,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             applicationPanelService.setupPanel(jda);
             spawnHelpListener.validateConfiguration(jda);
             spawnHelpPanelService.setupPanel(jda);
+            reactionRoleListener.validateConfiguration(jda);
 
             MarketplaceTicketConfig marketplaceTicketConfig = MarketplaceTicketConfig.from(plugin.getConfig());
             MarketplaceTicketStore marketplaceTicketStore = new MarketplaceTicketStore(database);

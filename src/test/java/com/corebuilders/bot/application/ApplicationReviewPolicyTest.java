@@ -1,5 +1,6 @@
 package com.corebuilders.bot.application;
 
+import com.corebuilders.bot.model.ApplicationReviewPolicy;
 import com.corebuilders.bot.model.Domain.ApplicationStatus;
 import org.junit.jupiter.api.Test;
 

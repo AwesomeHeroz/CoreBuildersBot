@@ -13,8 +13,8 @@ class ApplicationConfigTest {
         ApplicationConfig config = new ApplicationConfig(enabledConfig(false));
 
         assertEquals(Set.of("111111111111111111"), config.getRecruiterRoleIds());
-        assertEquals(Set.of("222222222222222222"), config.getLeaderRoleIds());
-        assertEquals(Set.of("111111111111111111", "222222222222222222"), config.getAllReviewRoleIds());
+        assertEquals(Set.of("111111111111111144"), config.getLeaderRoleIds());
+        assertEquals(Set.of("111111111111111111", "111111111111111144"), config.getAllReviewRoleIds());
         assertTrue(config.getFirstLevelAcceptedMessage().contains("leader"));
     }
 
@@ -24,7 +24,7 @@ class ApplicationConfigTest {
         ApplicationConfig config = new ApplicationConfig(yaml);
 
         assertEquals(Set.of("111111111111111111"), config.getRecruiterRoleIds());
-        assertEquals(Set.of("222222222222222222"), config.getLeaderRoleIds());
+        assertEquals(Set.of("111111111111111144"), config.getLeaderRoleIds());
     }
 
     @Test
@@ -33,7 +33,7 @@ class ApplicationConfigTest {
         yaml.set("discord.permissions.leadership-role-ids", null);
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> new ApplicationConfig(yaml));
-        assertTrue(error.getMessage().contains("leader-role-ids"));
+        assertTrue(error.getMessage().contains("leadership-role-ids"));
     }
 
     @Test
@@ -70,6 +70,7 @@ class ApplicationConfigTest {
                 ? "applications.reviewer-role-ids"
                 : "applications.recruiter-role-ids";
         yaml.set(recruiterPath, java.util.List.of("111111111111111111"));
+        yaml.set("discord.permissions.leadership-role-ids", java.util.List.of("111111111111111144"));
         return yaml;
     }
 }
