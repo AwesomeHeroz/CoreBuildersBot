@@ -1,6 +1,7 @@
 package com.corebuilders.bot.runtime;
 
 import com.corebuilders.bot.config.ApplicationConfig;
+import com.corebuilders.bot.config.BuildChallengeConfig;
 import com.corebuilders.bot.config.BotProperties;
 import com.corebuilders.bot.config.MusicConfig;
 import com.corebuilders.bot.config.MarketplaceTicketConfig;
@@ -19,6 +20,7 @@ import com.corebuilders.bot.persistence.QueryDslDiscordWebLoginChallengeReposito
 import com.corebuilders.bot.persistence.QueryDslSpawnHelpTicketRepository;
 import com.corebuilders.bot.discord.ApplicationDiscordListener;
 import com.corebuilders.bot.discord.ApplicationPanelService;
+import com.corebuilders.bot.discord.BuildChallengeDiscordListener;
 import com.corebuilders.bot.discord.CommandRegistrar;
 import com.corebuilders.bot.discord.DiscordBotListener;
 import com.corebuilders.bot.discord.MarketplaceTicketCoordinator;
@@ -66,6 +68,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
     private final HikariDataSource dataSource;
     private final DiscordBotListener discordListener;
     private final ApplicationDiscordListener applicationListener;
+    private final BuildChallengeDiscordListener buildChallengeListener;
     private final MarketplaceTicketDiscordListener marketplaceTicketListener;
     private final SpawnHelpDiscordListener spawnHelpListener;
     private final MusicDiscordListener musicListener;
@@ -84,6 +87,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             HikariDataSource dataSource,
             DiscordBotListener discordListener,
             ApplicationDiscordListener applicationListener,
+            BuildChallengeDiscordListener buildChallengeListener,
             MarketplaceTicketDiscordListener marketplaceTicketListener,
             SpawnHelpDiscordListener spawnHelpListener,
             MusicDiscordListener musicListener,
@@ -100,6 +104,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         this.dataSource = dataSource;
         this.discordListener = discordListener;
         this.applicationListener = applicationListener;
+        this.buildChallengeListener = buildChallengeListener;
         this.marketplaceTicketListener = marketplaceTicketListener;
         this.spawnHelpListener = spawnHelpListener;
         this.musicListener = musicListener;
@@ -122,6 +127,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         HikariDataSource dataSource = null;
         DiscordBotListener listener = null;
         ApplicationDiscordListener applicationListener = null;
+        BuildChallengeDiscordListener buildChallengeListener = null;
         MarketplaceTicketDiscordListener marketplaceTicketListener = null;
         SpawnHelpDiscordListener spawnHelpListener = null;
         MusicDiscordListener musicListener = null;
@@ -188,6 +194,17 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     applicationConfig,
                     properties.getGuildId()
             );
+            BuildChallengeConfig buildChallengeConfig = new BuildChallengeConfig(plugin.getConfig());
+            BuildChallengeService buildChallengeService = new BuildChallengeService(database, objectMapper);
+            buildChallengeListener = new BuildChallengeDiscordListener(
+                    buildChallengeConfig,
+                    buildChallengeService,
+                    properties.getGuildId(),
+                    messageId -> plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        plugin.getConfig().set("build-challenge.entry-panel.message-id", messageId);
+                        plugin.saveConfig();
+                    })
+            );
             SpawnHelpConfig spawnHelpConfig = new SpawnHelpConfig(plugin.getConfig());
             java.util.Map<String, String> spawnHelpServers = spawnHelpConfig.servers().stream()
                     .collect(java.util.stream.Collectors.toMap(
@@ -228,7 +245,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
             JDABuilder jdaBuilder = JDABuilder.createDefault(token)
                     .setActivity(Activity.playing("Core Builders progression"))
-                    .addEventListeners(applicationListener, spawnHelpListener, musicListener, reactionRoleListener)
+                    .addEventListeners(applicationListener, buildChallengeListener, spawnHelpListener, musicListener, reactionRoleListener)
                     .enableIntents(GatewayIntent.GUILD_MESSAGE_REACTIONS);
 
             if (musicConfig.enabled()) {
@@ -253,6 +270,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             );
             applicationListener.validateConfiguration(jda);
             applicationPanelService.setupPanel(jda);
+            buildChallengeListener.setup(jda);
             spawnHelpListener.validateConfiguration(jda);
             spawnHelpPanelService.setupPanel(jda);
             reactionRoleListener.validateConfiguration(jda);
@@ -319,6 +337,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
             java.util.Set<String> handledCommands = new java.util.LinkedHashSet<>(listener.handledCommandNames());
             handledCommands.addAll(applicationListener.handledCommandNames());
+            handledCommands.addAll(buildChallengeListener.handledCommandNames());
             handledCommands.addAll(musicListener.handledCommandNames());
             CommandRegistrar registrar = new CommandRegistrar(jda, properties, handledCommands);
             return new CoreBuildersRuntime(
@@ -326,6 +345,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
                     dataSource,
                     listener,
                     applicationListener,
+                    buildChallengeListener,
                     marketplaceTicketListener,
                     spawnHelpListener,
                     musicListener,
@@ -350,6 +370,9 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             }
             if (applicationListener != null) {
                 applicationListener.close();
+            }
+            if (buildChallengeListener != null) {
+                buildChallengeListener.close();
             }
             if (marketplaceTicketListener != null) {
                 marketplaceTicketListener.close();
@@ -407,6 +430,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
         closeQuietly("Marketplace ticket listener", marketplaceTicketListener::close);
         closeQuietly("Spawn-help listener", spawnHelpListener::close);
         closeQuietly("Application listener", applicationListener::close);
+        closeQuietly("Build challenge listener", buildChallengeListener::close);
         closeQuietly("Database pool", dataSource::close);
     }
 

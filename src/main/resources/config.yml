@@ -273,6 +273,47 @@ applications:
       min-files: 0
       max-files: 5
 
+build-challenge:
+  # Independent build challenge workflow. Uses its own database tables and does not affect membership applications.
+  enabled: false
+  prevent-duplicate-submission: true
+
+  entry-panel:
+    enabled: true
+    # Discord text channel ID where the permanent "Submit Build" button should be posted.
+    channel-id: ""
+    # Leave blank on first run; the bot stores the created panel message ID here automatically.
+    message-id: ""
+    title: "Core Builders Build Challenge"
+    description: |
+      Submit your build for the Core Builders build challenge.
+      You will need your Minecraft IGN, exact build coordinates, and screenshots.
+    button-label: "Submit Build"
+
+  # Dedicated private/staff-facing channel that receives all build submission packets.
+  submissions-channel-id: ""
+  # Optional public/results channel. Judges can publish all three assigned winners here with /buildchallenge announce-winners.
+  announcement-channel-id: ""
+
+  # Only these Discord role IDs may score entries, view calculated standings, or set winners.
+  judge-role-ids: []
+
+  uploads:
+    max-screenshots: 5
+    max-file-size-mb: 15
+    max-total-size-mb: 50
+
+  prize:
+    # Category where private winner/prize-claim channels are created.
+    category-id: ""
+    channel-name-pattern: "prize-{place}-{username}"
+    # Optional URL shown in the winner claim channel/DM.
+    shop-url: ""
+    code-prefix: "FROST"
+
+  messages:
+    submitted: "Your build challenge submission was successful. A judge will reach out soon to arrange a meeting at the build site."
+
 database:
   host: "localhost"
   port: 3306

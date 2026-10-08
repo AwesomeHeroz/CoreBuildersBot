@@ -44,6 +44,9 @@ public final class Schema {
     public static final QMarketplaceOrders MARKETPLACE_ORDERS = new QMarketplaceOrders("mpo");
     public static final QMarketplaceOrderItems MARKETPLACE_ORDER_ITEMS = new QMarketplaceOrderItems("mpoi");
     public static final QSpawnHelpTickets SPAWN_HELP_TICKETS = new QSpawnHelpTickets("sht");
+    public static final QBuildChallengeSubmissions BUILD_CHALLENGE_SUBMISSIONS = new QBuildChallengeSubmissions("bcs");
+    public static final QBuildChallengeScores BUILD_CHALLENGE_SCORES = new QBuildChallengeScores("bscore");
+    public static final QBuildChallengeWinners BUILD_CHALLENGE_WINNERS = new QBuildChallengeWinners("bcw");
 
     private abstract static class Table extends RelationalPathBase<Object> {
         protected Table(String variable, String table) {
@@ -384,5 +387,40 @@ public final class Schema {
         public QSpawnHelpTickets(String variable) { super(variable, "spawn_help_tickets"); }
     }
 
+
+    public static final class QBuildChallengeSubmissions extends Table {
+        public final StringPath id = createString("id");
+        public final StringPath discordUserId = createString("discord_user_id");
+        public final StringPath discordUsername = createString("discord_username");
+        public final StringPath submissionGuard = createString("submission_guard");
+        public final StringPath ign = createString("ign");
+        public final StringPath coordinates = createString("coordinates");
+        public final StringPath screenshotsJson = createString("screenshots_json");
+        public final StringPath submissionChannelId = createString("submission_channel_id");
+        public final StringPath submissionMessageId = createString("submission_message_id");
+        public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
+        public QBuildChallengeSubmissions(String variable) { super(variable, "build_challenge_submissions"); }
+    }
+
+    public static final class QBuildChallengeScores extends Table {
+        public final StringPath submissionId = createString("submission_id");
+        public final StringPath judgeDiscordId = createString("judge_discord_id");
+        public final NumberPath<Integer> score = createNumber("score", Integer.class);
+        public final StringPath notes = createString("notes");
+        public final DateTimePath<LocalDateTime> createdAt = createDateTime("created_at", LocalDateTime.class);
+        public final DateTimePath<LocalDateTime> updatedAt = createDateTime("updated_at", LocalDateTime.class);
+        public QBuildChallengeScores(String variable) { super(variable, "build_challenge_scores"); }
+    }
+
+    public static final class QBuildChallengeWinners extends Table {
+        public final NumberPath<Integer> placeNo = createNumber("place_no", Integer.class);
+        public final StringPath submissionId = createString("submission_id");
+        public final StringPath winnerDiscordId = createString("winner_discord_id");
+        public final StringPath claimCode = createString("claim_code");
+        public final StringPath claimChannelId = createString("claim_channel_id");
+        public final StringPath assignedByDiscordId = createString("assigned_by_discord_id");
+        public final DateTimePath<LocalDateTime> assignedAt = createDateTime("assigned_at", LocalDateTime.class);
+        public QBuildChallengeWinners(String variable) { super(variable, "build_challenge_winners"); }
+    }
 
 }

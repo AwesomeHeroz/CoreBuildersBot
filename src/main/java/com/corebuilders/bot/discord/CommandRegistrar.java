@@ -95,6 +95,21 @@ public final class CommandRegistrar {
         commands.add(Commands.slash("application", "Check your Core Builders membership application.")
                 .addSubcommands(new SubcommandData("status", "Show the status of your latest application.")));
 
+        commands.add(Commands.slash("buildchallenge", "Submit and judge Core Builders build challenge entries.")
+                .addSubcommands(
+                        new SubcommandData("submit", "Submit your IGN, build coordinates, and screenshots."),
+                        new SubcommandData("status", "Show your current build challenge submission."),
+                        new SubcommandData("score", "Score a build challenge submission; judges only.")
+                                .addOption(OptionType.STRING, "submission", "Build challenge submission UUID.", true)
+                                .addOption(OptionType.INTEGER, "score", "Score from 0 to 100.", true)
+                                .addOption(OptionType.STRING, "notes", "Optional private judging notes.", false),
+                        new SubcommandData("standings", "Calculate average judge scores; judges only."),
+                        new SubcommandData("announce-winners", "Publish the three assigned winners; judges only."),
+                        new SubcommandData("set-winner", "Set a winner and create their private prize channel; judges only.")
+                                .addOption(OptionType.INTEGER, "place", "Winner place: 1, 2, or 3.", true)
+                                .addOption(OptionType.USER, "user", "Winning entrant.", true)
+                ));
+
         // Unified Discord entry point matching the Minecraft /core command.
         // Existing top-level slash commands remain registered for compatibility.
         commands.add(Commands.slash("core", "Core Builders member commands on Discord.")
