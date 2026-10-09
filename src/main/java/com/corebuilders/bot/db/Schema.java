@@ -416,7 +416,6 @@ public final class Schema {
         public final NumberPath<Integer> placeNo = createNumber("place_no", Integer.class);
         public final StringPath submissionId = createString("submission_id");
         public final StringPath winnerDiscordId = createString("winner_discord_id");
-        public final StringPath claimCode = createString("claim_code");
         public final StringPath claimChannelId = createString("claim_channel_id");
         public final StringPath assignedByDiscordId = createString("assigned_by_discord_id");
         public final DateTimePath<LocalDateTime> assignedAt = createDateTime("assigned_at", LocalDateTime.class);

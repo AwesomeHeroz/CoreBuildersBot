@@ -20,8 +20,9 @@ public final class BuildChallengeConfig {
     private final Set<String> judgeRoleIds;
     private final String prizeCategoryId;
     private final String prizeChannelNamePattern;
-    private final String shopUrl;
-    private final String codePrefix;
+    private final String firstPlacePrize;
+    private final String secondPlacePrize;
+    private final String thirdPlacePrize;
     private final int maxScreenshots;
     private final long maxFileSizeBytes;
     private final long maxTotalUploadSizeBytes;
@@ -41,8 +42,9 @@ public final class BuildChallengeConfig {
         this.judgeRoleIds = parseSnowflakes(config.getStringList("build-challenge.judge-role-ids"), "build-challenge.judge-role-ids");
         this.prizeCategoryId = clean(config.getString("build-challenge.prize.category-id", ""));
         this.prizeChannelNamePattern = defaultIfBlank(config.getString("build-challenge.prize.channel-name-pattern", "prize-{place}-{username}"), "prize-{place}-{username}");
-        this.shopUrl = clean(config.getString("build-challenge.prize.shop-url", ""));
-        this.codePrefix = defaultIfBlank(config.getString("build-challenge.prize.code-prefix", "FROST"), "FROST").replaceAll("[^A-Za-z0-9_-]", "");
+        this.firstPlacePrize = defaultIfBlank(config.getString("build-challenge.prize.place-1", "First place prize"), "First place prize");
+        this.secondPlacePrize = defaultIfBlank(config.getString("build-challenge.prize.place-2", "Second place prize"), "Second place prize");
+        this.thirdPlacePrize = defaultIfBlank(config.getString("build-challenge.prize.place-3", "Third place prize"), "Third place prize");
         this.maxScreenshots = clamp(config.getInt("build-challenge.uploads.max-screenshots", 5), 1, 10);
         int maxFileMb = clamp(config.getInt("build-challenge.uploads.max-file-size-mb", 15), 1, 100);
         int maxTotalMb = clamp(config.getInt("build-challenge.uploads.max-total-size-mb", 50), maxFileMb, 500);
@@ -96,8 +98,14 @@ public final class BuildChallengeConfig {
     public Set<String> judgeRoleIds() { return judgeRoleIds; }
     public String prizeCategoryId() { return prizeCategoryId; }
     public String prizeChannelNamePattern() { return prizeChannelNamePattern; }
-    public String frostShopUrl() { return shopUrl; }
-    public String codePrefix() { return codePrefix; }
+    public String prizeForPlace(int place) {
+        return switch (place) {
+            case 1 -> firstPlacePrize;
+            case 2 -> secondPlacePrize;
+            case 3 -> thirdPlacePrize;
+            default -> throw new IllegalArgumentException("Winner place must be 1, 2, or 3.");
+        };
+    }
     public int maxScreenshots() { return maxScreenshots; }
     public long maxFileSizeBytes() { return maxFileSizeBytes; }
     public long maxTotalUploadSizeBytes() { return maxTotalUploadSizeBytes; }

@@ -38,7 +38,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,8 +54,6 @@ import java.util.function.Consumer;
 public final class BuildChallengeDiscordListener extends ListenerAdapter implements AutoCloseable {
     public static final String APPLY_BUTTON_ID = "buildchallenge:apply";
     private static final Logger log = LoggerFactory.getLogger(BuildChallengeDiscordListener.class);
-    private static final SecureRandom RANDOM = new SecureRandom();
-    private static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final EnumSet<Permission> PARTICIPANT_PERMISSIONS = EnumSet.of(
             Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND, Permission.MESSAGE_HISTORY,
             Permission.MESSAGE_ATTACH_FILES, Permission.MESSAGE_EMBED_LINKS);
@@ -134,6 +131,7 @@ public final class BuildChallengeDiscordListener extends ListenerAdapter impleme
             else if ("status".equals(sub)) status(event);
             else if ("score".equals(sub)) score(event);
             else if ("standings".equals(sub)) standings(event);
+            else if ("remove-submission".equals(sub)) removeSubmission(event);
             else if ("announce-winners".equals(sub)) announceWinners(event);
             else if ("set-winner".equals(sub)) setWinner(event);
             else event.reply("Unknown build challenge command.").setEphemeral(true).queue();
@@ -213,6 +211,29 @@ public final class BuildChallengeDiscordListener extends ListenerAdapter impleme
         event.reply(text.toString()).setEphemeral(true).queue();
     }
 
+    private void removeSubmission(SlashCommandInteractionEvent event) {
+        requireJudge(event.getMember());
+        User entrant = event.getOption("user").getAsUser();
+        Submission submission = service.latestForUser(entrant.getId())
+                .orElseThrow(() -> new IllegalArgumentException("That user has no build challenge submission."));
+
+        service.deleteSubmission(submission.id());
+
+        if (submission.channelId() != null && !submission.channelId().isBlank()
+                && submission.messageId() != null && !submission.messageId().isBlank()) {
+            TextChannel channel = event.getGuild().getTextChannelById(submission.channelId());
+            if (channel != null) {
+                channel.deleteMessageById(submission.messageId()).queue(ignored -> {}, failure ->
+                        log.warn("Removed build challenge submission {} from the database but could not delete Discord message {}",
+                                submission.id(), submission.messageId()));
+            }
+        }
+
+        event.reply("✅ Removed **" + escape(submission.ign()) + "**'s build challenge submission (`"
+                + submission.id() + "`). " + entrant.getAsMention() + " can submit again now.")
+                .setEphemeral(true).queue();
+    }
+
     private void announceWinners(SlashCommandInteractionEvent event) {
         requireJudge(event.getMember());
         if (config.announcementChannelId().isBlank()) throw new IllegalStateException("build-challenge.announcement-channel-id is not configured.");
@@ -224,7 +245,8 @@ public final class BuildChallengeDiscordListener extends ListenerAdapter impleme
             var winner = service.winner(currentPlace).orElseThrow(() -> new IllegalStateException("Winner #" + currentPlace + " has not been assigned yet."));
             Submission submission = service.get(winner.submissionId());
             text.append("**#").append(currentPlace).append(" — ").append(escape(submission.ign())).append("** (<@")
-                    .append(winner.winnerDiscordId()).append(">)\n");
+                    .append(winner.winnerDiscordId()).append(">)\n")
+                    .append("Prize: ").append(config.prizeForPlace(currentPlace)).append("\n");
         }
         channel.sendMessage(text.toString()).queue();
         event.reply("✅ Published the assigned build challenge winners in " + channel.getAsMention() + ".").setEphemeral(true).queue();
@@ -246,16 +268,17 @@ public final class BuildChallengeDiscordListener extends ListenerAdapter impleme
                 Member winner = guild.retrieveMemberById(winnerUser.getId()).complete();
                 Category category = guild.getCategoryById(config.prizeCategoryId());
                 if (category == null) throw new IllegalStateException("Configured prize category is unavailable.");
-                String code = makeClaimCode(place);
                 channel = createPrizeChannel(category, winner, event.getGuild().getSelfMember(), place);
-                service.assignWinner(place, submission, code, channel.getId(), event.getUser().getId());
+                service.assignWinner(place, submission, channel.getId(), event.getUser().getId());
 
-                String shopLine = config.frostShopUrl().isBlank() ? "" : "\nFrost Shop: " + config.frostShopUrl();
+                String prize = config.prizeForPlace(place);
                 channel.sendMessage("🏆 Congratulations " + winner.getAsMention() + "! You placed **#" + place + "** in the build challenge."
-                        + "\nYour prize claim code is: `" + code + "`" + shopLine
-                        + "\nUse this private channel to discuss prize claiming, including priority queue payment if needed.").complete();
+                        + "\n**Prize:** " + prize
+                        + "\nThe prize will be shared with you directly by the Core Builders leaders. Use this private channel if you need to coordinate with them.").complete();
                 TextChannel prizeChannel = channel;
-                winnerUser.openPrivateChannel().flatMap(dm -> dm.sendMessage("You placed #" + place + " in the Core Builders build challenge! Prize channel: " + prizeChannel.getAsMention() + "\nClaim code: `" + code + "`" + shopLine)).queue(ignored -> {}, ignored -> {});
+                winnerUser.openPrivateChannel().flatMap(dm -> dm.sendMessage("You placed #" + place + " in the Core Builders build challenge!"
+                        + "\nPrize: " + prize
+                        + "\nThe prize will be shared by the Core Builders leaders. Prize channel: " + prizeChannel.getAsMention())).queue(ignored -> {}, ignored -> {});
                 hook.editOriginal("✅ Set " + winnerUser.getAsMention() + " as **#" + place + "**. Prize channel: " + channel.getAsMention()).queue();
             } catch (Exception e) {
                 if (channel != null) try { channel.delete().complete(); } catch (Exception ignored) { }
@@ -333,11 +356,7 @@ public final class BuildChallengeDiscordListener extends ListenerAdapter impleme
         String v = m == null || m.getAsOptionalString() == null ? "" : m.getAsOptionalString().trim();
         if (v.isBlank()) throw new IllegalArgumentException("Required field missing: " + id); return v;
     }
-    private String makeClaimCode(int place) {
-        StringBuilder s = new StringBuilder(config.codePrefix()).append('-').append(place).append('-');
-        for (int i = 0; i < 10; i++) s.append(CODE_ALPHABET.charAt(RANDOM.nextInt(CODE_ALPHABET.length())));
-        return s.toString();
-    }
+
     private static String safeFilename(String name) { return (name == null ? "screenshot.png" : name).replaceAll("[^A-Za-z0-9._-]", "_"); }
     private static String escape(String v) { return v == null ? "" : v.replace("`", "'").replace("*", "\\*").replace("_", "\\_"); }
     private static String safe(Exception e) { String m = e.getMessage(); return m == null || m.isBlank() ? e.getClass().getSimpleName() : m; }

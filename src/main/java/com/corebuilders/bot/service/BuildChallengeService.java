@@ -29,7 +29,7 @@ public final class BuildChallengeService {
     public record Score(UUID submissionId, String judgeDiscordId, int score, String notes,
                         Instant createdAt, Instant updatedAt) {}
     public record Standing(Submission submission, double averageScore, int judgeCount) {}
-    public record Winner(int place, UUID submissionId, String winnerDiscordId, String claimCode,
+    public record Winner(int place, UUID submissionId, String winnerDiscordId,
                          String claimChannelId, String assignedByDiscordId, Instant assignedAt) {}
 
     private final QueryDslDatabase database;
@@ -91,6 +91,19 @@ public final class BuildChallengeService {
         return mapSubmission(row);
     }
 
+    public Submission deleteSubmission(UUID submissionId) {
+        Submission submission = get(submissionId);
+        Integer winner = database.query(q -> q.selectOne().from(BUILD_CHALLENGE_WINNERS)
+                .where(BUILD_CHALLENGE_WINNERS.submissionId.eq(submissionId.toString())).fetchFirst());
+        if (winner != null) {
+            throw new IllegalStateException("This submission is already assigned as a winner and cannot be removed.");
+        }
+        long deleted = database.query(q -> q.delete(BUILD_CHALLENGE_SUBMISSIONS)
+                .where(BUILD_CHALLENGE_SUBMISSIONS.id.eq(submissionId.toString())).execute());
+        if (deleted == 0) throw new IllegalArgumentException("Build challenge submission not found: " + submissionId);
+        return submission;
+    }
+
     public void score(UUID submissionId, String judgeId, int value, String notes) {
         if (value < 0 || value > 100) throw new IllegalArgumentException("Score must be from 0 to 100.");
         get(submissionId);
@@ -138,14 +151,13 @@ public final class BuildChallengeService {
         return List.copyOf(out);
     }
 
-    public Winner assignWinner(int place, Submission submission, String code, String channelId, String actorId) {
+    public Winner assignWinner(int place, Submission submission, String channelId, String actorId) {
         if (place < 1 || place > 3) throw new IllegalArgumentException("Winner place must be 1, 2, or 3.");
         try {
             database.query(q -> q.insert(BUILD_CHALLENGE_WINNERS)
                     .set(BUILD_CHALLENGE_WINNERS.placeNo, place)
                     .set(BUILD_CHALLENGE_WINNERS.submissionId, submission.id().toString())
                     .set(BUILD_CHALLENGE_WINNERS.winnerDiscordId, submission.discordUserId())
-                    .set(BUILD_CHALLENGE_WINNERS.claimCode, code)
                     .set(BUILD_CHALLENGE_WINNERS.claimChannelId, channelId)
                     .set(BUILD_CHALLENGE_WINNERS.assignedByDiscordId, actorId)
                     .set(BUILD_CHALLENGE_WINNERS.assignedAt, now()).execute());
@@ -161,13 +173,13 @@ public final class BuildChallengeService {
     public Optional<Winner> winner(int place) {
         return database.query(q -> Optional.ofNullable(q.select(
                         BUILD_CHALLENGE_WINNERS.placeNo, BUILD_CHALLENGE_WINNERS.submissionId,
-                        BUILD_CHALLENGE_WINNERS.winnerDiscordId, BUILD_CHALLENGE_WINNERS.claimCode,
-                        BUILD_CHALLENGE_WINNERS.claimChannelId, BUILD_CHALLENGE_WINNERS.assignedByDiscordId,
+                        BUILD_CHALLENGE_WINNERS.winnerDiscordId, BUILD_CHALLENGE_WINNERS.claimChannelId,
+                        BUILD_CHALLENGE_WINNERS.assignedByDiscordId,
                         BUILD_CHALLENGE_WINNERS.assignedAt)
                 .from(BUILD_CHALLENGE_WINNERS).where(BUILD_CHALLENGE_WINNERS.placeNo.eq(place)).fetchOne())
                 .map(r -> new Winner(r.get(BUILD_CHALLENGE_WINNERS.placeNo),
                         UUID.fromString(r.get(BUILD_CHALLENGE_WINNERS.submissionId)),
-                        r.get(BUILD_CHALLENGE_WINNERS.winnerDiscordId), r.get(BUILD_CHALLENGE_WINNERS.claimCode),
+                        r.get(BUILD_CHALLENGE_WINNERS.winnerDiscordId),
                         r.get(BUILD_CHALLENGE_WINNERS.claimChannelId), r.get(BUILD_CHALLENGE_WINNERS.assignedByDiscordId),
                         instant(r.get(BUILD_CHALLENGE_WINNERS.assignedAt)))));
     }

@@ -104,6 +104,8 @@ public final class CommandRegistrar {
                                 .addOption(OptionType.INTEGER, "score", "Score from 0 to 100.", true)
                                 .addOption(OptionType.STRING, "notes", "Optional private judging notes.", false),
                         new SubcommandData("standings", "Calculate average judge scores; judges only."),
+                        new SubcommandData("remove-submission", "Remove an entrant submission so they can submit again; judges only.")
+                                .addOption(OptionType.USER, "user", "Entrant whose current submission should be removed.", true),
                         new SubcommandData("announce-winners", "Publish the three assigned winners; judges only."),
                         new SubcommandData("set-winner", "Set a winner and create their private prize channel; judges only.")
                                 .addOption(OptionType.INTEGER, "place", "Winner place: 1, 2, or 3.", true)

@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.corebuilders"
-version = "2.16.0"
+version = "2.16.2"
 
 java {
     toolchain {

@@ -307,9 +307,10 @@ build-challenge:
     # Category where private winner/prize-claim channels are created.
     category-id: ""
     channel-name-pattern: "prize-{place}-{username}"
-    # Optional URL shown in the winner claim channel/DM.
-    shop-url: ""
-    code-prefix: "FROST"
+    # Prize text shown to each winner. Leaders will share/deliver the prize directly.
+    place-1: "First place prize"
+    place-2: "Second place prize"
+    place-3: "Third place prize"
 
   messages:
     submitted: "Your build challenge submission was successful. A judge will reach out soon to arrange a meeting at the build site."
