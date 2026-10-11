@@ -4,6 +4,10 @@ import com.corebuilders.bot.config.NotifyConfig;
 import com.corebuilders.bot.config.NotifyConfig.NotifyType;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.label.Label;
+import net.dv8tion.jda.api.components.textinput.TextInput;
+import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
@@ -12,9 +16,7 @@ import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.interactions.components.text.TextInput;
-import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
-import net.dv8tion.jda.api.interactions.modals.Modal;
+import net.dv8tion.jda.api.modals.Modal;
 
 import java.util.Set;
 
@@ -45,7 +47,7 @@ public final class NotifyDiscordListener extends ListenerAdapter {
             return;
         }
 
-        TextInput message = TextInput.create(MESSAGE_INPUT_ID, "Notification message", TextInputStyle.PARAGRAPH)
+        TextInput message = TextInput.create(MESSAGE_INPUT_ID, TextInputStyle.PARAGRAPH)
                 .setPlaceholder("Enter the message you want to send...")
                 .setRequired(true)
                 .setMinLength(1)
@@ -53,7 +55,7 @@ public final class NotifyDiscordListener extends ListenerAdapter {
                 .build();
 
         Modal modal = Modal.create(MODAL_PREFIX + type.id(), type.name() + " Notification")
-                .addActionRow(message)
+                .addComponents(Label.of("message", message))
                 .build();
         event.replyModal(modal).queue();
     }
