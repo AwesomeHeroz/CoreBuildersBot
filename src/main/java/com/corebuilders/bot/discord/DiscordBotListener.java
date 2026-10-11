@@ -140,7 +140,8 @@ public final class DiscordBotListener extends ListenerAdapter {
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if ("apply".equals(event.getName())
                 || "application".equals(event.getName())
-                || "music".equals(event.getName())) {
+                || "music".equals(event.getName())
+                || "notify".equals(event.getName())) {
             return;
         }
 

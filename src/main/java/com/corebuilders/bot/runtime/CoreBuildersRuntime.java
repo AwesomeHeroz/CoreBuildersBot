@@ -4,6 +4,7 @@ import com.corebuilders.bot.config.ApplicationConfig;
 import com.corebuilders.bot.config.BuildChallengeConfig;
 import com.corebuilders.bot.config.BotProperties;
 import com.corebuilders.bot.config.MusicConfig;
+import com.corebuilders.bot.config.NotifyConfig;
 import com.corebuilders.bot.config.MarketplaceTicketConfig;
 import com.corebuilders.bot.config.ProgressionConfig;
 import com.corebuilders.bot.config.ReactionRoleConfig;
@@ -24,6 +25,7 @@ import com.corebuilders.bot.discord.BuildChallengeDiscordListener;
 import com.corebuilders.bot.discord.CommandRegistrar;
 import com.corebuilders.bot.discord.DiscordBotListener;
 import com.corebuilders.bot.discord.MarketplaceTicketCoordinator;
+import com.corebuilders.bot.discord.NotifyDiscordListener;
 import com.corebuilders.bot.discord.MarketplaceTicketDiscordListener;
 import com.corebuilders.bot.discord.TicketingMarketplaceCartOperations;
 import com.corebuilders.bot.discord.TicketingMarketplaceDisputeOperations;
@@ -234,6 +236,8 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             ReactionRoleConfig reactionRoleConfig = new ReactionRoleConfig(plugin.getConfig());
             ReactionRoleDiscordListener reactionRoleListener = new ReactionRoleDiscordListener(
                     properties.getGuildId(), reactionRoleConfig);
+            NotifyConfig notifyConfig = new NotifyConfig(plugin.getConfig());
+            NotifyDiscordListener notifyListener = new NotifyDiscordListener(properties.getGuildId(), notifyConfig);
 
             String token = properties.getToken();
             if (token == null || token.isBlank()) {
@@ -245,7 +249,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
 
             JDABuilder jdaBuilder = JDABuilder.createDefault(token)
                     .setActivity(Activity.playing("Core Builders progression"))
-                    .addEventListeners(applicationListener, buildChallengeListener, spawnHelpListener, musicListener, reactionRoleListener)
+                    .addEventListeners(applicationListener, buildChallengeListener, spawnHelpListener, musicListener, reactionRoleListener, notifyListener)
                     .enableIntents(GatewayIntent.GUILD_MESSAGE_REACTIONS);
 
             if (musicConfig.enabled()) {
@@ -274,6 +278,7 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             spawnHelpListener.validateConfiguration(jda);
             spawnHelpPanelService.setupPanel(jda);
             reactionRoleListener.validateConfiguration(jda);
+            notifyListener.validateConfiguration(jda);
 
             MarketplaceTicketConfig marketplaceTicketConfig = MarketplaceTicketConfig.from(plugin.getConfig());
             MarketplaceTicketStore marketplaceTicketStore = new MarketplaceTicketStore(database);
@@ -339,7 +344,8 @@ public final class CoreBuildersRuntime implements AutoCloseable {
             handledCommands.addAll(applicationListener.handledCommandNames());
             handledCommands.addAll(buildChallengeListener.handledCommandNames());
             handledCommands.addAll(musicListener.handledCommandNames());
-            CommandRegistrar registrar = new CommandRegistrar(jda, properties, handledCommands);
+            handledCommands.addAll(notifyListener.handledCommandNames());
+            CommandRegistrar registrar = new CommandRegistrar(jda, properties, handledCommands, notifyConfig);
             return new CoreBuildersRuntime(
                     plugin.getLogger(),
                     dataSource,

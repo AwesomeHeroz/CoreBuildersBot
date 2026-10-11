@@ -15,6 +15,25 @@ discord:
     achievements: "achievements"
     leaderboard: "core-leaderboard"
 
+  # Configurable role-gated notifications. Example: /notify event or /notify hyperglide.
+  notifications:
+    enabled: false
+    types:
+      - id: "event"
+        name: "Event"
+        # Only members with one of these role IDs can run /notify event.
+        allowed-role-ids: []
+        # Role that will be pinged by the notification.
+        mention-role-id: ""
+        # Text channel where the notification is posted.
+        channel-id: ""
+      - id: "hyperglide"
+        name: "Hyperglide"
+        allowed-role-ids: []
+        mention-role-id: ""
+        channel-id: ""
+        message: "{user} sent a **{type}** notification."
+
   # Give/remove roles when users react to one configured Discord message.
   reaction-roles:
     enabled: false

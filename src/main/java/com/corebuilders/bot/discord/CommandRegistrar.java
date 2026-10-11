@@ -1,6 +1,7 @@
 package com.corebuilders.bot.discord;
 
 import com.corebuilders.bot.config.BotProperties;
+import com.corebuilders.bot.config.NotifyConfig;
 import com.corebuilders.bot.discord.command.CommandCoverage;
 import com.corebuilders.bot.model.Domain.ContributionCategory;
 import com.corebuilders.bot.model.Domain.Reputation;
@@ -24,11 +25,13 @@ public final class CommandRegistrar {
     private final JDA jda;
     private final BotProperties properties;
     private final Set<String> handledCommandNames;
+    private final NotifyConfig notifyConfig;
 
-    public CommandRegistrar(JDA jda, BotProperties properties, Set<String> handledCommandNames) {
+    public CommandRegistrar(JDA jda, BotProperties properties, Set<String> handledCommandNames, NotifyConfig notifyConfig) {
         this.jda = jda;
         this.properties = properties;
         this.handledCommandNames = Set.copyOf(handledCommandNames);
+        this.notifyConfig = notifyConfig;
     }
 
     /** Registers commands synchronously in the one configured Core Builders guild. */
@@ -94,6 +97,15 @@ public final class CommandRegistrar {
         commands.add(Commands.slash("apply", "Apply to join Core Builders using the configured application form."));
         commands.add(Commands.slash("application", "Check your Core Builders membership application.")
                 .addSubcommands(new SubcommandData("status", "Show the status of your latest application.")));
+
+        if (notifyConfig.enabled() && !notifyConfig.types().isEmpty()) {
+            var notifyCommand = Commands.slash("notify", "Send a configured role notification.");
+            notifyConfig.types().values().stream()
+                    .sorted(java.util.Comparator.comparing(NotifyConfig.NotifyType::id))
+                    .forEach(type -> notifyCommand.addSubcommands(
+                            new SubcommandData(type.id(), "Send the " + type.name() + " notification.")));
+            commands.add(notifyCommand);
+        }
 
         commands.add(Commands.slash("buildchallenge", "Submit and judge Core Builders build challenge entries.")
                 .addSubcommands(
